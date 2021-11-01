@@ -1,0 +1,9 @@
+[submodule "run_kilosort/spikesorters/npy-matlab"]
+	path = run_kilosort/spikesorters/npy-matlab
+	url = https://github.com/kwikteam/npy-matlab.git
+[submodule "run_kilosort/spikesorters/Kilosort2"]
+	path = run_kilosort/spikesorters/Kilosort2
+	url = https://github.com/MouseLand/Kilosort2.git
+[submodule "run_kilosort/spikesorters/Kilosort"]
+	path = run_kilosort/spikesorters/Kilosort
+	url = https://github.com/MouseLand/Kilosort
