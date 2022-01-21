@@ -1,6 +1,12 @@
 # BrainCogsEphysSorters
 Compilation of electrophysiology sorters supported in the U19 Ephys Pipeline
 
+## Process the data
+Just run the slurm job:
+```
+sbatch job.slurm
+```
+
 ## Instructions to clone and setup the repository
 Since this is a repository with submodules it is needed to add `--recurse-submodules` when cloning it. So log into tiger and execute:
 ```

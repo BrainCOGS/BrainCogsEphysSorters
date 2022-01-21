@@ -2,8 +2,8 @@
 #SBATCH --job-name=spikesorter-job     # create a short name for your job
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
-#SBATCH --time=2:00:00
-#SBATCH --mem=200G
+#SBATCH --time=00:30:00
+#SBATCH --mem=100G
 #SBATCH --gres=gpu:1
 #SBATCH --mail-user=ms81@princeton.edu
 #SBATCH --mail-type=begin
