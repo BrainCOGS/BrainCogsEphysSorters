@@ -34,11 +34,12 @@ def run_sorter(method = 'ks2'):
 
     match method:
         case 'ks2':
-            start_matlab = "module load matlab/R2020a"  # Alvaro, should we load the module here, or in the slurm file? 
-            folder = "cd /tigress/ms81/"
-            matlab_command = """matlab -singleCompThread -nodisplay -nosplash -r "addpath('/tigress/ms81/spikesorters/'); run_ks2('/tigress/ms81/catgt_towers_task_g0/','/tigress/ms81/tmp/'); exit" """
-            final_touch = "touch /tigress/ms81/catgt_towers_task_g0/slurm_sorting.flag"
+            start_matlab = "module load matlab/R2020a\n"  # Alvaro, should we load the module here, or in the slurm file? 
+            folder = "cd /tigress/ms81/\n"
+            matlab_command = """matlab -singleCompThread -nodisplay -nosplash -r "addpath('/tigress/ms81/spikesorters/'); run_ks2('/tigress/ms81/catgt_towers_task_g0/','/tigress/ms81/tmp/'); exit" \n"""
+            final_touch = "touch /tigress/ms81/catgt_towers_task_g0/slurm_sorting.flag\n"
             processing_string = start_matlab + folder + matlab_command + final_touch
+
             print("Running kilosort 2")
             os.system(processing_string)
             print("Finished kilosort 2")
