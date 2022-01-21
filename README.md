@@ -7,6 +7,11 @@ Since this is a repository with submodules it is needed to add `--recurse-submod
 git clone --recurse-submodules git@github.com:BrainCOGS/BrainCogsEphysSorters.git
 ```
 
+And for branches, add the flag
+```
+git clone -b tmp --single-branch --recurse-submodules https://github.com/BrainCOGS/BrainCogsEphysSorters
+```
+
 ## Set up python environment:
 First, make an environment that slurm can fire up:
 ```
