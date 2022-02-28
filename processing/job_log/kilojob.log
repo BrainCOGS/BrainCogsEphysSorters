@@ -1,0 +1,477 @@
+
+                            < M A T L A B (R) >
+                  Copyright 1984-2020 The MathWorks, Inc.
+              R2020a Update 1 (9.8.0.1359463) 64-bit (glnxa64)
+                               April 9, 2020
+
+ 
+To get started, type doc.
+For product information, visit www.mathworks.com.
+ 
+    "ks2 version: "    "bdf9366bc73b4d9c101595c10193a5..."
+
+Looking for data inside /tigress/alvaros/ephys_raw/manuel/M004/20210506/towersTask_g0/towersTask_g0_imec0/ 
+Time   0s. Computing whitening matrix.. 
+Getting channel whitening matrix... 
+Channel-whitening matrix computed. 
+Time 145s. Loading raw data and applying filters... 
+Time 14405s. Finished preprocessing 4640 batches. 
+random seed for clusterSingleBatches: 1
+Obtained 7 PC waveforms in 13.03 seconds 
+time 1.26, pre clustered 1 / 4640 batches 
+Batch 289 has fewer than Nfilt spikes.
+Batch 290 has fewer than Nfilt spikes.
+Batch 291 has fewer than Nfilt spikes.
+Batch 292 has fewer than Nfilt spikes.
+Batch 293 has fewer than Nfilt spikes.
+Batch 294 has fewer than Nfilt spikes.
+Batch 295 has fewer than Nfilt spikes.
+Batch 296 has fewer than Nfilt spikes.
+Batch 297 has fewer than Nfilt spikes.
+Batch 298 has fewer than Nfilt spikes.
+Batch 299 has fewer than Nfilt spikes.
+Batch 300 has fewer than Nfilt spikes.
+Batch 301 has fewer than Nfilt spikes.
+Batch 302 has fewer than Nfilt spikes.
+Batch 303 has fewer than Nfilt spikes.
+Batch 313 has fewer than Nfilt spikes.
+Batch 319 has fewer than Nfilt spikes.
+Batch 342 has fewer than Nfilt spikes.
+Batch 343 has fewer than Nfilt spikes.
+Batch 344 has fewer than Nfilt spikes.
+Batch 347 has fewer than Nfilt spikes.
+Batch 424 has fewer than Nfilt spikes.
+Batch 425 has fewer than Nfilt spikes.
+Batch 427 has fewer than Nfilt spikes.
+Batch 428 has fewer than Nfilt spikes.
+Batch 429 has fewer than Nfilt spikes.
+Batch 430 has fewer than Nfilt spikes.
+Batch 431 has fewer than Nfilt spikes.
+Batch 432 has fewer than Nfilt spikes.
+Batch 433 has fewer than Nfilt spikes.
+Batch 434 has fewer than Nfilt spikes.
+Batch 435 has fewer than Nfilt spikes.
+Batch 436 has fewer than Nfilt spikes.
+Batch 437 has fewer than Nfilt spikes.
+Batch 438 has fewer than Nfilt spikes.
+Batch 439 has fewer than Nfilt spikes.
+Batch 459 has fewer than Nfilt spikes.
+Batch 482 has fewer than Nfilt spikes.
+Batch 483 has fewer than Nfilt spikes.
+Batch 484 has fewer than Nfilt spikes.
+Batch 485 has fewer than Nfilt spikes.
+time 241.20, pre clustered 501 / 4640 batches 
+Batch 507 has fewer than Nfilt spikes.
+Batch 508 has fewer than Nfilt spikes.
+Batch 509 has fewer than Nfilt spikes.
+Batch 510 has fewer than Nfilt spikes.
+Batch 511 has fewer than Nfilt spikes.
+Batch 532 has fewer than Nfilt spikes.
+Batch 533 has fewer than Nfilt spikes.
+Batch 537 has fewer than Nfilt spikes.
+Batch 539 has fewer than Nfilt spikes.
+Batch 556 has fewer than Nfilt spikes.
+Batch 571 has fewer than Nfilt spikes.
+Batch 572 has fewer than Nfilt spikes.
+Batch 577 has fewer than Nfilt spikes.
+Batch 594 has fewer than Nfilt spikes.
+Batch 615 has fewer than Nfilt spikes.
+Batch 624 has fewer than Nfilt spikes.
+Batch 625 has fewer than Nfilt spikes.
+Batch 681 has fewer than Nfilt spikes.
+Batch 696 has fewer than Nfilt spikes.
+Batch 697 has fewer than Nfilt spikes.
+Batch 742 has fewer than Nfilt spikes.
+Batch 783 has fewer than Nfilt spikes.
+Batch 784 has fewer than Nfilt spikes.
+Batch 785 has fewer than Nfilt spikes.
+Batch 786 has fewer than Nfilt spikes.
+Batch 787 has fewer than Nfilt spikes.
+Batch 807 has fewer than Nfilt spikes.
+Batch 814 has fewer than Nfilt spikes.
+Batch 823 has fewer than Nfilt spikes.
+Batch 824 has fewer than Nfilt spikes.
+Batch 825 has fewer than Nfilt spikes.
+Batch 826 has fewer than Nfilt spikes.
+Batch 845 has fewer than Nfilt spikes.
+Batch 846 has fewer than Nfilt spikes.
+Batch 847 has fewer than Nfilt spikes.
+Batch 848 has fewer than Nfilt spikes.
+Batch 849 has fewer than Nfilt spikes.
+Batch 850 has fewer than Nfilt spikes.
+Batch 857 has fewer than Nfilt spikes.
+Batch 894 has fewer than Nfilt spikes.
+Batch 911 has fewer than Nfilt spikes.
+Batch 912 has fewer than Nfilt spikes.
+Batch 913 has fewer than Nfilt spikes.
+Batch 914 has fewer than Nfilt spikes.
+Batch 915 has fewer than Nfilt spikes.
+Batch 916 has fewer than Nfilt spikes.
+Batch 917 has fewer than Nfilt spikes.
+Batch 918 has fewer than Nfilt spikes.
+Batch 919 has fewer than Nfilt spikes.
+Batch 956 has fewer than Nfilt spikes.
+Batch 957 has fewer than Nfilt spikes.
+Batch 976 has fewer than Nfilt spikes.
+Batch 977 has fewer than Nfilt spikes.
+Batch 984 has fewer than Nfilt spikes.
+Batch 998 has fewer than Nfilt spikes.
+Batch 999 has fewer than Nfilt spikes.
+Batch 1000 has fewer than Nfilt spikes.
+Batch 1001 has fewer than Nfilt spikes.
+time 456.68, pre clustered 1001 / 4640 batches 
+Batch 1002 has fewer than Nfilt spikes.
+Batch 1003 has fewer than Nfilt spikes.
+Batch 1004 has fewer than Nfilt spikes.
+Batch 1005 has fewer than Nfilt spikes.
+Batch 1029 has fewer than Nfilt spikes.
+Batch 1030 has fewer than Nfilt spikes.
+Batch 1031 has fewer than Nfilt spikes.
+Batch 1032 has fewer than Nfilt spikes.
+Batch 1033 has fewer than Nfilt spikes.
+Batch 1034 has fewer than Nfilt spikes.
+Batch 1035 has fewer than Nfilt spikes.
+Batch 1036 has fewer than Nfilt spikes.
+Batch 1037 has fewer than Nfilt spikes.
+Batch 1038 has fewer than Nfilt spikes.
+Batch 1039 has fewer than Nfilt spikes.
+Batch 1040 has fewer than Nfilt spikes.
+Batch 1041 has fewer than Nfilt spikes.
+Batch 1042 has fewer than Nfilt spikes.
+Batch 1043 has fewer than Nfilt spikes.
+Batch 1044 has fewer than Nfilt spikes.
+Batch 1045 has fewer than Nfilt spikes.
+Batch 1046 has fewer than Nfilt spikes.
+Batch 1047 has fewer than Nfilt spikes.
+Batch 1048 has fewer than Nfilt spikes.
+Batch 1088 has fewer than Nfilt spikes.
+Batch 1089 has fewer than Nfilt spikes.
+Batch 1129 has fewer than Nfilt spikes.
+Batch 1172 has fewer than Nfilt spikes.
+Batch 1177 has fewer than Nfilt spikes.
+Batch 1224 has fewer than Nfilt spikes.
+Batch 1225 has fewer than Nfilt spikes.
+Batch 1226 has fewer than Nfilt spikes.
+Batch 1227 has fewer than Nfilt spikes.
+Batch 1293 has fewer than Nfilt spikes.
+Batch 1407 has fewer than Nfilt spikes.
+Batch 1408 has fewer than Nfilt spikes.
+Batch 1409 has fewer than Nfilt spikes.
+Batch 1410 has fewer than Nfilt spikes.
+Batch 1411 has fewer than Nfilt spikes.
+Batch 1412 has fewer than Nfilt spikes.
+Batch 1423 has fewer than Nfilt spikes.
+Batch 1477 has fewer than Nfilt spikes.
+Batch 1478 has fewer than Nfilt spikes.
+Batch 1479 has fewer than Nfilt spikes.
+time 537.64, pre clustered 1501 / 4640 batches 
+Batch 1562 has fewer than Nfilt spikes.
+Batch 1666 has fewer than Nfilt spikes.
+Batch 1667 has fewer than Nfilt spikes.
+Batch 1668 has fewer than Nfilt spikes.
+Batch 1711 has fewer than Nfilt spikes.
+Batch 1712 has fewer than Nfilt spikes.
+Batch 1792 has fewer than Nfilt spikes.
+Batch 1793 has fewer than Nfilt spikes.
+Batch 1794 has fewer than Nfilt spikes.
+Batch 1795 has fewer than Nfilt spikes.
+Batch 1796 has fewer than Nfilt spikes.
+Batch 1798 has fewer than Nfilt spikes.
+Batch 1832 has fewer than Nfilt spikes.
+Batch 1835 has fewer than Nfilt spikes.
+Batch 1836 has fewer than Nfilt spikes.
+Batch 1950 has fewer than Nfilt spikes.
+Batch 1952 has fewer than Nfilt spikes.
+time 619.95, pre clustered 2001 / 4640 batches 
+Batch 2015 has fewer than Nfilt spikes.
+Batch 2016 has fewer than Nfilt spikes.
+Batch 2017 has fewer than Nfilt spikes.
+Batch 2110 has fewer than Nfilt spikes.
+Batch 2111 has fewer than Nfilt spikes.
+Batch 2112 has fewer than Nfilt spikes.
+Batch 2113 has fewer than Nfilt spikes.
+Batch 2134 has fewer than Nfilt spikes.
+Batch 2135 has fewer than Nfilt spikes.
+Batch 2260 has fewer than Nfilt spikes.
+Batch 2262 has fewer than Nfilt spikes.
+Batch 2263 has fewer than Nfilt spikes.
+Batch 2264 has fewer than Nfilt spikes.
+Batch 2265 has fewer than Nfilt spikes.
+Batch 2266 has fewer than Nfilt spikes.
+Batch 2305 has fewer than Nfilt spikes.
+Batch 2306 has fewer than Nfilt spikes.
+Batch 2307 has fewer than Nfilt spikes.
+Batch 2308 has fewer than Nfilt spikes.
+Batch 2309 has fewer than Nfilt spikes.
+Batch 2310 has fewer than Nfilt spikes.
+Batch 2311 has fewer than Nfilt spikes.
+Batch 2312 has fewer than Nfilt spikes.
+Batch 2313 has fewer than Nfilt spikes.
+Batch 2314 has fewer than Nfilt spikes.
+Batch 2315 has fewer than Nfilt spikes.
+Batch 2316 has fewer than Nfilt spikes.
+Batch 2365 has fewer than Nfilt spikes.
+Batch 2386 has fewer than Nfilt spikes.
+Batch 2387 has fewer than Nfilt spikes.
+Batch 2388 has fewer than Nfilt spikes.
+Batch 2389 has fewer than Nfilt spikes.
+Batch 2390 has fewer than Nfilt spikes.
+Batch 2391 has fewer than Nfilt spikes.
+Batch 2411 has fewer than Nfilt spikes.
+Batch 2412 has fewer than Nfilt spikes.
+Batch 2413 has fewer than Nfilt spikes.
+Batch 2414 has fewer than Nfilt spikes.
+Batch 2415 has fewer than Nfilt spikes.
+Batch 2416 has fewer than Nfilt spikes.
+Batch 2417 has fewer than Nfilt spikes.
+Batch 2418 has fewer than Nfilt spikes.
+Batch 2419 has fewer than Nfilt spikes.
+Batch 2420 has fewer than Nfilt spikes.
+Batch 2421 has fewer than Nfilt spikes.
+Batch 2443 has fewer than Nfilt spikes.
+Batch 2444 has fewer than Nfilt spikes.
+Batch 2445 has fewer than Nfilt spikes.
+Batch 2446 has fewer than Nfilt spikes.
+Batch 2447 has fewer than Nfilt spikes.
+Batch 2448 has fewer than Nfilt spikes.
+time 828.57, pre clustered 2501 / 4640 batches 
+Batch 2544 has fewer than Nfilt spikes.
+Batch 2545 has fewer than Nfilt spikes.
+Batch 2546 has fewer than Nfilt spikes.
+Batch 2547 has fewer than Nfilt spikes.
+Batch 2548 has fewer than Nfilt spikes.
+Batch 2549 has fewer than Nfilt spikes.
+Batch 2550 has fewer than Nfilt spikes.
+Batch 2551 has fewer than Nfilt spikes.
+Batch 2552 has fewer than Nfilt spikes.
+Batch 2553 has fewer than Nfilt spikes.
+Batch 2554 has fewer than Nfilt spikes.
+Batch 2555 has fewer than Nfilt spikes.
+Batch 2607 has fewer than Nfilt spikes.
+Batch 2608 has fewer than Nfilt spikes.
+Batch 2609 has fewer than Nfilt spikes.
+Batch 2610 has fewer than Nfilt spikes.
+Batch 2611 has fewer than Nfilt spikes.
+Batch 2721 has fewer than Nfilt spikes.
+Batch 2722 has fewer than Nfilt spikes.
+Batch 2723 has fewer than Nfilt spikes.
+Batch 2724 has fewer than Nfilt spikes.
+Batch 2725 has fewer than Nfilt spikes.
+Batch 2851 has fewer than Nfilt spikes.
+Batch 2858 has fewer than Nfilt spikes.
+Batch 2859 has fewer than Nfilt spikes.
+Batch 2860 has fewer than Nfilt spikes.
+Batch 2861 has fewer than Nfilt spikes.
+Batch 2876 has fewer than Nfilt spikes.
+Batch 2877 has fewer than Nfilt spikes.
+Batch 2878 has fewer than Nfilt spikes.
+Batch 2879 has fewer than Nfilt spikes.
+Batch 2911 has fewer than Nfilt spikes.
+Batch 2912 has fewer than Nfilt spikes.
+Batch 2913 has fewer than Nfilt spikes.
+Batch 2914 has fewer than Nfilt spikes.
+Batch 2915 has fewer than Nfilt spikes.
+Batch 2916 has fewer than Nfilt spikes.
+Batch 2917 has fewer than Nfilt spikes.
+Batch 2918 has fewer than Nfilt spikes.
+Batch 2919 has fewer than Nfilt spikes.
+Batch 2920 has fewer than Nfilt spikes.
+Batch 2921 has fewer than Nfilt spikes.
+Batch 2941 has fewer than Nfilt spikes.
+Batch 2942 has fewer than Nfilt spikes.
+Batch 2943 has fewer than Nfilt spikes.
+Batch 2944 has fewer than Nfilt spikes.
+Batch 2945 has fewer than Nfilt spikes.
+Batch 2946 has fewer than Nfilt spikes.
+Batch 2948 has fewer than Nfilt spikes.
+time 1031.30, pre clustered 3001 / 4640 batches 
+Batch 3075 has fewer than Nfilt spikes.
+Batch 3076 has fewer than Nfilt spikes.
+Batch 3077 has fewer than Nfilt spikes.
+Batch 3078 has fewer than Nfilt spikes.
+Batch 3079 has fewer than Nfilt spikes.
+Batch 3080 has fewer than Nfilt spikes.
+Batch 3081 has fewer than Nfilt spikes.
+Batch 3082 has fewer than Nfilt spikes.
+Batch 3083 has fewer than Nfilt spikes.
+Batch 3165 has fewer than Nfilt spikes.
+Batch 3166 has fewer than Nfilt spikes.
+Batch 3167 has fewer than Nfilt spikes.
+Batch 3168 has fewer than Nfilt spikes.
+Batch 3171 has fewer than Nfilt spikes.
+Batch 3172 has fewer than Nfilt spikes.
+Batch 3173 has fewer than Nfilt spikes.
+Batch 3174 has fewer than Nfilt spikes.
+Batch 3175 has fewer than Nfilt spikes.
+Batch 3176 has fewer than Nfilt spikes.
+Batch 3177 has fewer than Nfilt spikes.
+Batch 3208 has fewer than Nfilt spikes.
+Batch 3209 has fewer than Nfilt spikes.
+Batch 3253 has fewer than Nfilt spikes.
+Batch 3256 has fewer than Nfilt spikes.
+Batch 3423 has fewer than Nfilt spikes.
+time 1111.98, pre clustered 3501 / 4640 batches 
+Batch 3585 has fewer than Nfilt spikes.
+Batch 3589 has fewer than Nfilt spikes.
+Batch 3590 has fewer than Nfilt spikes.
+Batch 3591 has fewer than Nfilt spikes.
+Batch 3658 has fewer than Nfilt spikes.
+Batch 3789 has fewer than Nfilt spikes.
+Batch 3847 has fewer than Nfilt spikes.
+Batch 3849 has fewer than Nfilt spikes.
+Batch 3885 has fewer than Nfilt spikes.
+Batch 3886 has fewer than Nfilt spikes.
+time 1200.12, pre clustered 4001 / 4640 batches 
+Batch 4040 has fewer than Nfilt spikes.
+Batch 4041 has fewer than Nfilt spikes.
+Batch 4042 has fewer than Nfilt spikes.
+Batch 4213 has fewer than Nfilt spikes.
+Batch 4214 has fewer than Nfilt spikes.
+Batch 4292 has fewer than Nfilt spikes.
+time 1288.74, pre clustered 4501 / 4640 batches 
+time 0.44, compared 1 / 4640 batches 
+time 69.27, compared 501 / 4640 batches 
+time 138.21, compared 1001 / 4640 batches 
+time 206.58, compared 1501 / 4640 batches 
+time 274.67, compared 2001 / 4640 batches 
+time 344.07, compared 2501 / 4640 batches 
+time 413.18, compared 3001 / 4640 batches 
+time 482.47, compared 3501 / 4640 batches 
+time 551.72, compared 4001 / 4640 batches 
+time 621.50, compared 4501 / 4640 batches 
+time 656.77, Re-ordered 4640 batches. 
+Time 685s. Optimizing templates ...
+686.29 sec, 1 / 4640 batches, 45 units, nspks: 3.6120, mu: 10.0000, nst0: 53, merges: 0.3000, 0.0000 
+699.29 sec, 101 / 4640 batches, 326 units, nspks: 334.4224, mu: 23.3968, nst0: 479, merges: 81.7055, 0.0150 
+711.69 sec, 201 / 4640 batches, 347 units, nspks: 389.9034, mu: 21.6392, nst0: 261, merges: 89.7178, 0.0018 
+724.15 sec, 301 / 4640 batches, 370 units, nspks: 450.5605, mu: 23.8906, nst0: 295, merges: 92.2532, 0.0902 
+736.91 sec, 401 / 4640 batches, 401 units, nspks: 441.2020, mu: 22.7400, nst0: 394, merges: 91.3545, 0.1110 
+750.29 sec, 501 / 4640 batches, 426 units, nspks: 507.8485, mu: 24.4475, nst0: 469, merges: 93.8507, 0.1317 
+764.08 sec, 601 / 4640 batches, 435 units, nspks: 467.4354, mu: 28.0255, nst0: 549, merges: 87.7592, 0.1295 
+777.97 sec, 701 / 4640 batches, 428 units, nspks: 455.6543, mu: 29.0756, nst0: 439, merges: 89.1119, 0.2583 
+790.83 sec, 801 / 4640 batches, 399 units, nspks: 491.2114, mu: 26.8001, nst0: 546, merges: 83.8929, 0.0596 
+804.14 sec, 901 / 4640 batches, 412 units, nspks: 478.3798, mu: 27.9286, nst0: 728, merges: 86.7497, 0.1514 
+817.51 sec, 1001 / 4640 batches, 392 units, nspks: 501.1723, mu: 29.0036, nst0: 446, merges: 88.1528, 0.1682 
+830.42 sec, 1101 / 4640 batches, 359 units, nspks: 461.6930, mu: 27.1830, nst0: 389, merges: 87.2894, 0.2458 
+842.77 sec, 1201 / 4640 batches, 333 units, nspks: 442.7553, mu: 25.4569, nst0: 625, merges: 83.3376, 0.1540 
+854.41 sec, 1301 / 4640 batches, 288 units, nspks: 453.2689, mu: 25.1815, nst0: 386, merges: 86.7458, 0.1273 
+864.76 sec, 1401 / 4640 batches, 191 units, nspks: 403.1350, mu: 16.9571, nst0: 406, merges: 81.2301, 0.2250 
+874.49 sec, 1501 / 4640 batches, 178 units, nspks: 401.8337, mu: 16.1334, nst0: 350, merges: 78.5696, 0.0752 
+883.76 sec, 1601 / 4640 batches, 130 units, nspks: 358.9361, mu: 15.3281, nst0: 331, merges: 77.6977, 0.0682 
+892.66 sec, 1701 / 4640 batches, 135 units, nspks: 371.2040, mu: 15.4535, nst0: 320, merges: 79.2551, 0.1083 
+901.40 sec, 1801 / 4640 batches, 112 units, nspks: 344.2038, mu: 14.3275, nst0: 362, merges: 77.5016, 0.1036 
+910.25 sec, 1901 / 4640 batches, 134 units, nspks: 317.7144, mu: 15.5075, nst0: 295, merges: 69.9338, 0.0716 
+918.43 sec, 2001 / 4640 batches, 120 units, nspks: 286.1429, mu: 14.2727, nst0: 225, merges: 62.4269, 0.0087 
+926.30 sec, 2101 / 4640 batches, 91 units, nspks: 244.0093, mu: 14.7411, nst0: 221, merges: 55.7947, 0.0239 
+934.02 sec, 2201 / 4640 batches, 80 units, nspks: 210.5917, mu: 13.9674, nst0: 203, merges: 54.6913, 0.0029 
+941.41 sec, 2301 / 4640 batches, 78 units, nspks: 192.5395, mu: 13.4673, nst0: 157, merges: 53.9912, 0.0004 
+949.05 sec, 2401 / 4640 batches, 81 units, nspks: 228.2728, mu: 13.5280, nst0: 425, merges: 56.3543, 0.0000 
+956.48 sec, 2501 / 4640 batches, 100 units, nspks: 237.4575, mu: 14.2828, nst0: 136, merges: 55.8794, 0.0000 
+963.91 sec, 2601 / 4640 batches, 78 units, nspks: 245.6965, mu: 14.0317, nst0: 235, merges: 55.3398, 0.0000 
+971.89 sec, 2701 / 4640 batches, 115 units, nspks: 279.5735, mu: 15.0608, nst0: 298, merges: 60.8960, 0.0000 
+980.27 sec, 2801 / 4640 batches, 133 units, nspks: 368.2674, mu: 14.3289, nst0: 535, merges: 69.1324, 0.0000 
+988.90 sec, 2901 / 4640 batches, 111 units, nspks: 337.7299, mu: 14.3087, nst0: 509, merges: 75.6091, 0.0000 
+997.59 sec, 3001 / 4640 batches, 125 units, nspks: 367.4764, mu: 14.4686, nst0: 318, merges: 79.5382, 0.0430 
+1006.49 sec, 3101 / 4640 batches, 133 units, nspks: 381.6417, mu: 14.5144, nst0: 513, merges: 77.2886, 0.0202 
+1015.52 sec, 3201 / 4640 batches, 153 units, nspks: 383.4879, mu: 15.0949, nst0: 335, merges: 78.0176, 0.0210 
+1025.12 sec, 3301 / 4640 batches, 201 units, nspks: 406.2226, mu: 14.8484, nst0: 369, merges: 78.5729, 0.0254 
+1035.39 sec, 3401 / 4640 batches, 251 units, nspks: 449.2919, mu: 15.1906, nst0: 586, merges: 84.4512, 0.0931 
+1046.29 sec, 3501 / 4640 batches, 251 units, nspks: 439.9958, mu: 16.4060, nst0: 505, merges: 85.3782, 0.0113 
+1057.67 sec, 3601 / 4640 batches, 273 units, nspks: 448.1482, mu: 17.2416, nst0: 699, merges: 84.9933, 0.0243 
+1069.19 sec, 3701 / 4640 batches, 277 units, nspks: 456.5176, mu: 18.9841, nst0: 419, merges: 87.6774, 0.0029 
+1081.40 sec, 3801 / 4640 batches, 309 units, nspks: 523.6541, mu: 21.0006, nst0: 637, merges: 91.9708, 0.0004 
+1093.47 sec, 3901 / 4640 batches, 337 units, nspks: 460.3842, mu: 21.4452, nst0: 320, merges: 87.6064, 0.0229 
+1105.45 sec, 4001 / 4640 batches, 353 units, nspks: 495.0600, mu: 23.3380, nst0: 540, merges: 85.6879, 0.0028 
+1118.61 sec, 4101 / 4640 batches, 365 units, nspks: 495.4726, mu: 26.9894, nst0: 518, merges: 87.1287, 0.0003 
+1131.54 sec, 4201 / 4640 batches, 398 units, nspks: 494.3759, mu: 27.0264, nst0: 692, merges: 90.5122, 0.0000 
+1144.58 sec, 4301 / 4640 batches, 396 units, nspks: 428.1437, mu: 27.3245, nst0: 315, merges: 86.6860, 0.0000 
+1157.85 sec, 4401 / 4640 batches, 401 units, nspks: 439.1557, mu: 26.1305, nst0: 608, merges: 87.2928, 0.0000 
+1170.99 sec, 4501 / 4640 batches, 392 units, nspks: 416.5487, mu: 28.9227, nst0: 241, merges: 83.8834, 0.0000 
+1183.27 sec, 4601 / 4640 batches, 366 units, nspks: 393.6161, mu: 22.0614, nst0: 469, merges: 82.7356, 0.0000 
+Elapsed time is 1188.294148 seconds.
+Finished learning templates 
+Time 1190s. Optimizing templates ...
+1190.38 sec, 1 / 2320 batches, 359 units, nspks: 18.5000, mu: 22.0979, nst0: 660 
+1198.22 sec, 101 / 2320 batches, 359 units, nspks: 390.4444, mu: 22.8790, nst0: 968 
+1206.10 sec, 201 / 2320 batches, 359 units, nspks: 429.7420, mu: 23.6906, nst0: 598 
+1214.22 sec, 301 / 2320 batches, 359 units, nspks: 493.5833, mu: 23.3685, nst0: 630 
+1222.31 sec, 401 / 2320 batches, 359 units, nspks: 479.8955, mu: 23.4675, nst0: 886 
+1230.65 sec, 501 / 2320 batches, 359 units, nspks: 537.5472, mu: 24.1070, nst0: 1014 
+1238.92 sec, 601 / 2320 batches, 359 units, nspks: 490.3915, mu: 24.4128, nst0: 931 
+1247.50 sec, 701 / 2320 batches, 359 units, nspks: 477.4406, mu: 24.7509, nst0: 761 
+1255.57 sec, 801 / 2320 batches, 359 units, nspks: 496.7229, mu: 25.3595, nst0: 985 
+1264.13 sec, 901 / 2320 batches, 359 units, nspks: 493.8686, mu: 25.5781, nst0: 1265 
+1272.51 sec, 1001 / 2320 batches, 359 units, nspks: 513.3028, mu: 26.1885, nst0: 868 
+1280.94 sec, 1101 / 2320 batches, 359 units, nspks: 475.0487, mu: 26.4442, nst0: 740 
+1289.09 sec, 1201 / 2320 batches, 359 units, nspks: 457.2739, mu: 26.1786, nst0: 1052 
+1297.15 sec, 1301 / 2320 batches, 359 units, nspks: 458.2480, mu: 26.0215, nst0: 712 
+1304.68 sec, 1401 / 2320 batches, 359 units, nspks: 399.3802, mu: 25.9900, nst0: 833 
+1312.17 sec, 1501 / 2320 batches, 359 units, nspks: 392.0953, mu: 26.0276, nst0: 687 
+1319.45 sec, 1601 / 2320 batches, 359 units, nspks: 355.5559, mu: 25.9372, nst0: 680 
+1326.72 sec, 1701 / 2320 batches, 359 units, nspks: 367.2487, mu: 25.9233, nst0: 635 
+1333.89 sec, 1801 / 2320 batches, 359 units, nspks: 328.0235, mu: 25.9915, nst0: 725 
+1341.09 sec, 1901 / 2320 batches, 359 units, nspks: 313.1226, mu: 25.9052, nst0: 634 
+1347.86 sec, 2001 / 2320 batches, 359 units, nspks: 275.7008, mu: 26.0084, nst0: 467 
+1354.45 sec, 2101 / 2320 batches, 359 units, nspks: 236.2641, mu: 26.0171, nst0: 446 
+1360.87 sec, 2201 / 2320 batches, 359 units, nspks: 201.8216, mu: 26.0027, nst0: 439 
+1367.26 sec, 2301 / 2320 batches, 359 units, nspks: 183.1087, mu: 25.9696, nst0: 340 
+Elapsed time is 1368.725674 seconds.
+Time 1370s. Optimizing templates ...
+1370.15 sec, 1 / 2320 batches, 359 units, nspks: 21.8500, mu: 22.0979, nst0: 890 
+1377.76 sec, 101 / 2320 batches, 359 units, nspks: 336.8960, mu: 22.8703, nst0: 392 
+1385.38 sec, 201 / 2320 batches, 359 units, nspks: 330.4623, mu: 23.1546, nst0: 447 
+1393.35 sec, 301 / 2320 batches, 359 units, nspks: 318.4450, mu: 23.2857, nst0: 493 
+1400.98 sec, 401 / 2320 batches, 359 units, nspks: 389.0923, mu: 23.1304, nst0: 504 
+1408.45 sec, 501 / 2320 batches, 359 units, nspks: 375.0097, mu: 23.5221, nst0: 1126 
+1416.46 sec, 601 / 2320 batches, 359 units, nspks: 397.9106, mu: 24.0111, nst0: 884 
+1423.95 sec, 701 / 2320 batches, 359 units, nspks: 369.1351, mu: 24.1941, nst0: 613 
+1431.51 sec, 801 / 2320 batches, 359 units, nspks: 348.0315, mu: 25.2641, nst0: 283 
+1439.01 sec, 901 / 2320 batches, 359 units, nspks: 373.4654, mu: 25.7758, nst0: 565 
+1446.35 sec, 1001 / 2320 batches, 359 units, nspks: 332.5185, mu: 24.7977, nst0: 632 
+1453.85 sec, 1101 / 2320 batches, 359 units, nspks: 304.4520, mu: 26.1180, nst0: 380 
+1461.13 sec, 1201 / 2320 batches, 359 units, nspks: 296.4780, mu: 26.7684, nst0: 511 
+1468.42 sec, 1301 / 2320 batches, 359 units, nspks: 283.4234, mu: 27.4062, nst0: 438 
+1475.93 sec, 1401 / 2320 batches, 359 units, nspks: 294.7411, mu: 27.5540, nst0: 637 
+1483.08 sec, 1501 / 2320 batches, 359 units, nspks: 229.2296, mu: 28.0567, nst0: 224 
+1490.21 sec, 1601 / 2320 batches, 359 units, nspks: 252.5705, mu: 28.5182, nst0: 876 
+1497.52 sec, 1701 / 2320 batches, 359 units, nspks: 281.2630, mu: 28.6085, nst0: 455 
+1504.98 sec, 1801 / 2320 batches, 359 units, nspks: 272.7534, mu: 28.8724, nst0: 608 
+1512.52 sec, 1901 / 2320 batches, 359 units, nspks: 289.5937, mu: 28.9996, nst0: 538 
+1519.66 sec, 2001 / 2320 batches, 359 units, nspks: 264.9021, mu: 28.8860, nst0: 500 
+1526.85 sec, 2101 / 2320 batches, 359 units, nspks: 285.2040, mu: 29.2826, nst0: 492 
+1534.17 sec, 2201 / 2320 batches, 359 units, nspks: 212.6232, mu: 29.4394, nst0: 570 
+1541.63 sec, 2301 / 2320 batches, 359 units, nspks: 319.3103, mu: 29.4653, nst0: 560 
+Elapsed time is 1543.100264 seconds.
+Number of spikes before applying cutoff: 3164285
+Finished compressing time-varying templates 
+initialized spike counts
+merged 173 into 176 
+merged 158 into 159 
+merged 136 into 139 
+merged 271 into 272 
+merged 123 into 122 
+merged 126 into 125 
+merged 316 into 329 
+merged 104 into 105 
+merged 12 into 13 
+merged 349 into 351 
+merged 47 into 55 
+merged 195 into 196 
+merged 164 into 161 
+merged 131 into 134 
+merged 211 into 214 
+Found 0 splits, checked 1/359 clusters, nccg 0 
+Found 1 splits, checked 1/360 clusters, nccg 0 
+Found 38 splits, checked 101/397 clusters, nccg 9 
+Found 66 splits, checked 201/425 clusters, nccg 30 
+Found 92 splits, checked 301/451 clusters, nccg 40 
+Found 101 splits, checked 401/460 clusters, nccg 51 
+Finished splitting. Found 104 splits, checked 463/463 clusters, nccg 56 
+Found 0 splits, checked 1/463 clusters, nccg 0 
+Found 8 splits, checked 101/471 clusters, nccg 7 
+Found 16 splits, checked 201/479 clusters, nccg 24 
+Found 23 splits, checked 301/486 clusters, nccg 37 
+Found 30 splits, checked 401/493 clusters, nccg 46 
+Finished splitting. Found 30 splits, checked 493/493 clusters, nccg 52 
+found 128 good units 
+Saving results to Phy  
