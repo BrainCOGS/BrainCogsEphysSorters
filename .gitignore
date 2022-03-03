@@ -2,5 +2,7 @@
 
 *.DS_Store
 
-
+*CatGT.log
 preprocessing/CatGT-linux/links/*
+
+*__pycache__*
