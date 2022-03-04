@@ -3,6 +3,8 @@
 *.DS_Store
 
 *CatGT.log
-preprocessing/CatGT-linux/links/*
+*/CatGT-linux/links/*
 
 *__pycache__*
+
+*egg-info
