@@ -1,9 +1,9 @@
-[submodule "sorters/npy-matlab"]
-	path = sorters/npy-matlab
-	url = https://github.com/kwikteam/npy-matlab.git
-[submodule "sorters/Kilosort2"]
-	path = sorters/Kilosort2
-	url = https://github.com/MouseLand/Kilosort2.git
 [submodule "sorters/Kilosort"]
 	path = sorters/Kilosort
 	url = https://github.com/MouseLand/Kilosort
+[submodule "sorters/Kilosort2"]
+	path = sorters/Kilosort2
+	url = https://github.com/MouseLand/Kilosort2.git
+[submodule "sorters/npy-matlab"]
+	path = sorters/npy-matlab
+	url = https://github.com/kwikteam/npy-matlab.git
