@@ -9,8 +9,11 @@ function run_ks2(rootZ, rootH, dir_pattern, channel_map_file)
 % run_ks2_ibl(rootZ, rootH, dir_pattern, channel_map_file)
 
 try
+
+    this_dir = fileparts(which('run_ks2'))
+
     %% 1) Set paths and get ks2 commit hash
-    addpath(genpath('/tigress/alvaros/run_kilosort/spikesorters/kilosort2')) % path to kilosort folder
+    addpath(genpath(fullfile(this_dir, 'sorters', 'kilosort2'))) % path to kilosort folder
     addpath(genpath('/tigress/alvaros/run_kilosort/spikesorters/npy-matlab'))
     [~, hash] = unix('git --git-dir /tigress/alvaros/run_kilosort/spikesorters/kilosort2/.git rev-parse --verify HEAD');
     disp(["ks2 version: " hash])
