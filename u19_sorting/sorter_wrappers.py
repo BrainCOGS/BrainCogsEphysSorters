@@ -4,10 +4,10 @@ import pathlib
 import subprocess
 import u19_sorting.config as config
 
-def sorter_main(raw_directory, processed_directory, preprocess_parameters, process_parameters):
+def sorter_main(raw_directory, processed_directory, preprocess_parameters, process_parameters, preprocess_parameter_filename):
 
     if preprocess_parameters['clustering_method'] == 'kilosort2':
-        kilosort2.run_kilosort2(raw_directory, processed_directory, process_parameters)
+        kilosort2.run_kilosort2(raw_directory, processed_directory, preprocess_parameter_filename)
 
     else:
         print("skipping")
@@ -15,24 +15,27 @@ def sorter_main(raw_directory, processed_directory, preprocess_parameters, proce
 
 class kilosort2():
 
+    #This library directory
+    ks2_directory = pathlib.Path(config.sorters_dir, "Kilosort2").as_posix()
+
     @staticmethod
-    def run_kilosort2(raw_directory, processed_directory, process_parameters):
+    def run_kilosort2(raw_directory, processed_directory, preprocess_parameter_filename):
 
         print('running kilosort2')
-        #Create the final cat_gt_command
-        '''
-        cat_gt_command = kilosort2.create_kilosort2_command(process_parameters)
-        print(cat_gt_command)
-        p = subprocess.Popen(cat_gt_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        ks2_command =  ['matlab', '-nodisplay', '-nosplash',
+        "addpath('" + kilosort2.ks2_directory + "'); run_ks2('" + preprocess_parameter_filename + "','" + raw_directory.as_posix() + "','"  + processed_directory.as_posix() + "'); exit"]
+
+        print('ks2_command', ks2_command)
+        p = subprocess.Popen(ks2_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         p.wait()
         stdout, stderr = p.communicate()
         print(stdout.decode('UTF-8'))
         print(stderr.decode('UTF-8'))
-        '''
+        
 
     @staticmethod
     def create_kilosort2_command(kilosort2_params):
-
         pass
 
 

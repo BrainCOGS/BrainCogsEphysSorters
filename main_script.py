@@ -10,7 +10,7 @@ import u19_sorting.sorter_wrappers as sw
 
 
 #sbatch --export=recording_process_id=26,raw_data_directory='jjulian/jjulian_jj048/01162022/jjulian_jj048_01162022_g0/jjulian_jj048_01162022_g0_imec0',processed_data_directory='jjulian/jjulian_jj048/01162022/jjulian_jj048_01162022_g0/jjulian_jj048_01162022_g0_imec0/recording_process_id_26',repository_dir='/scratch/gpfs/BRAINCOGS/electorphysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
-
+# sacct --job 8193599
 #conda activate /home/alvaros/.conda/envs/BrainCogsEphysSorters_env/
 
 
@@ -36,6 +36,6 @@ with open(preprocess_parameter_filename, 'r') as preprocess_param_file:
 pw.preprocess_main(raw_data_directory, processed_data_directory, preprocess_parameters)
 
 #Sort main
-sw.sorter_main(raw_data_directory, processed_data_directory, preprocess_parameters, process_parameters)
+sw.sorter_main(raw_data_directory, processed_data_directory, preprocess_parameters, process_parameters, preprocess_parameter_filename)
 
 
