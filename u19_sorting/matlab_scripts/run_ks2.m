@@ -11,33 +11,37 @@ function run_ks2(parameter_file, raw_directory, processed_directory, dir_pattern
     try
         
         this_dir = fileparts(which('run_ks2'));
-        braincogs_ephys_sorters_dir = fileparts(this_dir);
+        braincogs_ephys_sorters_dir = fileparts(fileparts(this_dir));
 
         disp(this_dir)
         
         
         %% 1) Set paths and get ks2 commit hash
-        kilosort2_dir = fullfile(braincogs_ephys_sorters_dir, 'sorters', 'kilosort2');
-        npy_matlab_dir = fullfile(braincogs_ephys_sorters_dir, 'sorters', 'kilosort2');
+        kilosort2_dir = fullfile(braincogs_ephys_sorters_dir, 'sorters', 'Kilosort2');
+        npy_matlab_dir = fullfile(braincogs_ephys_sorters_dir, 'sorters', 'npy-matlab');
         addpath(genpath(kilosort2_dir)) % path to kilosort folder
         addpath(genpath(npy_matlab_dir))
-        [~, hash] = unix('git --git-dir ' kilosort2_dir '.git rev-parse --verify HEAD');
-        disp(["ks2 version: " hash])
+        %[~, hash] = unix(['git --git-dir=' fullfile(kilosort2_dir, '.git') ' rev-parse --verify HEAD'])
+        %disp(["ks2 version: " hash])
         
         %% 2) Parse input arguments
         rootZ = raw_directory;
         rootH = rootZ;
         
-        if nargin <= 3, dir_pattern = '*.ap.bin'; end
-        if nargin <= 4, channel_map_file = fullfile(kilosort2_dir 'configFiles' ,'neuropixPhase3B1_kilosortChanMap.mat'); end
+        if nargin <= 3
+            dir_pattern = '*.ap.bin'; 
+        end
+        if nargin <= 4
+            channel_map_file = fullfile(kilosort2_dir, 'configFiles' ,'neuropixPhase3B1_kilosortChanMap.mat'); 
+        end
+        disp(channel_map_file)
         
         %% 3) get IBL params
-        %ops = ks2_custom_params;
-        [ops, success] = loadJSONfile(parameter_file);
-
-        if ~success
-            error('Parameter file cannot be read, try again')
-        end
+        ops = ks2_custom_params(channel_map_file, rootH);
+        %[ops, success] = loadJSONfile(parameter_file);
+        %if ~success
+        %    error('Parameter file cannot be read, try again')
+        %end
         
         %% 4) KS2 run
         fprintf('Looking for data inside %s \n', rootZ)
@@ -121,8 +125,7 @@ function run_ks2(parameter_file, raw_directory, processed_directory, dir_pattern
     end
     
     
-    function ops = ks2_custom_params
-    ops.commitHash = strip(hash);
+    function ops = ks2_custom_params(channel_map_file, rootH)
     ops.chanMap = channel_map_file;
     ops.fs = 30000;   % sample rate
     ops.fshigh = 300;    % frequency for high pass filtering (150)

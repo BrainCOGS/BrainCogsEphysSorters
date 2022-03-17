@@ -36,6 +36,6 @@ with open(preprocess_parameter_filename, 'r') as preprocess_param_file:
 pw.preprocess_main(raw_data_directory, processed_data_directory, preprocess_parameters)
 
 #Sort main
-sw.sorter_main(raw_data_directory, processed_data_directory, preprocess_parameters, process_parameters, preprocess_parameter_filename)
+sw.sorter_main(raw_data_directory, processed_data_directory, preprocess_parameters, process_parameters, process_parameters_filename)
 
 
