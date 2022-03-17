@@ -85,9 +85,9 @@ def get_submodule_hash(sorter_submodule):
     p.wait()
     stdout, stderr = p.communicate()
     output = stdout.decode('UTF-8')
-
+    
     if len(output) > 0:
-        hash = output.split(' ')[0]
+        hash = output.split(' ')[1]
     else:
         raise Exception(sorter_submodule + " is not a supported submodule")
 
