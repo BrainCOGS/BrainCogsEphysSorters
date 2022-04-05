@@ -28,6 +28,48 @@ Logs will be written:
 - for CatGT:
   ```/BrainCogsEphysSortets/CatGT.log``` (appended every time)
 
+### Preprocess parameter file
+
+Preprocess parameter file is a json file to configure preprocessing steps and select the desired sorter, main parameters are:
+
+- **clustering_method:** (str) Which sorter will be used (Kilosort2, Kilosort, SpikeInterface).
+- **cat_gt:** (dict) All parameters corresponding to catGT preprocessing.
+  - **use_cat_gt:** (bool) 0 if cat_gt will not be used, 1 otherwise.
+  - **"cat_gt_params"**: (dict) Cat_GT params that are included in command line when it is called
+- **process_cluster:** (str) NA, Choose which available cluster will be used for processing (tiger, spock, etc)
+
+Example:
+Next preprocess param file will run Kilosort2 and use catGT:
+
+```
+{
+"process_cluster": "tiger",
+"clustering_method": "Kilosort2",
+ "cat_gt": {
+    "use_cat_gt": 1,
+    "cat_gt_params": {
+      "dir": "",
+      "run": "towersTask",
+      "g": 0,
+      "t": 0,
+      "apfilter": ["biquad",2,300,0],
+      "gfix": [0.40,0.10,0.02],
+      "extras": ["prb_3A", "prb_fld", "t_miss_ok", "ap", "gblcar", "out_prb_fld"],
+      "dest": ""
+   }
+ }
+}
+```
+The catGT command from these params is:
+
+```./runit.sh '-dir=raw_data_directory -run=towersTask -g=0 -t=0 -prb_fld -prb=0 -t_miss_ok -ap -apfilter=biquad,2,300,0 -gblcar -gfix=0.40,0.10,0.02 -dest=processed_data_directory -out_prb_fld```
+
+### Process parameter file
+
+Process parameter file is a json file to configure sorter.
+To configure this file refer to each sorter documentation:
+
+- [Kilosort2](https://github.com/MouseLand/Kilosort#parameters)
 
 
 ### Tiger cluster directory organization
