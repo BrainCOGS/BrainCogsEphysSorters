@@ -3,7 +3,7 @@
 	url = https://github.com/MouseLand/Kilosort
 [submodule "sorters/Kilosort2"]
 	path = sorters/Kilosort2
-	url = https://github.com/MouseLand/Kilosort2.git
+	url = https://github.com/MouseLand/Kilosort
 [submodule "sorters/npy-matlab"]
 	path = sorters/npy-matlab
 	url = https://github.com/kwikteam/npy-matlab.git

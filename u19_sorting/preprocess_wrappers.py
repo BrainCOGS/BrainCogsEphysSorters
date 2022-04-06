@@ -7,6 +7,9 @@ import u19_sorting.config as config
 
 def preprocess_main(raw_data_directory, processed_data_directory, preprocess_parameters):
 
+    #Create path structure if not in place
+    pathlib.Path(processed_data_directory).mkdir(parents=True, exist_ok=True)
+
     if 'cat_gt' in preprocess_parameters and preprocess_parameters['cat_gt']['use_cat_gt']:
         cat_gt.run_cat_gt(raw_data_directory, processed_data_directory, preprocess_parameters['cat_gt']['cat_gt_params'])
 
@@ -36,7 +39,7 @@ class cat_gt():
     def create_cat_gt_command(cat_gt_params):
 
         cat_gt_command = []
-        cat_gt_command.append("sh")
+        #cat_gt_command.append("sh")
         cat_gt_command.append((pathlib.Path(cat_gt.cat_gt_directory, "runit.sh").as_posix()))
 
         for key, value in cat_gt_params.items():
