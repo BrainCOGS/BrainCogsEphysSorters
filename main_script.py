@@ -13,6 +13,7 @@ import u19_sorting.sorter_wrappers as sw
 # sacct --job 8193599
 #conda activate /home/alvaros/.conda/envs/BrainCogsEphysSorters_env/
 
+#sbatch --export=recording_process_id=29,raw_data_directory='ms81/ms81_M005/20210505/towers_task_g0/towers_task_g0_imec0',processed_data_directory='ms81/ms81_M005/20210505/towers_task_g0/towers_task_g0_imec0/recording_process_id_29',repository_dir='/scratch/gpfs/BRAINCOGS/electorphysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
 
 # Get recording process and data directories
 recording_process_id = os.environ['recording_process_id']
@@ -33,9 +34,9 @@ with open(preprocess_parameter_filename, 'r') as preprocess_param_file:
     preprocess_parameters = json.load(preprocess_param_file)
 
 #Preprocess main
-pw.preprocess_main(raw_data_directory, processed_data_directory, preprocess_parameters)
+new_raw_data_directory = pw.preprocess_main(raw_data_directory, processed_data_directory, preprocess_parameters)
 
 #Sort main
-sw.sorter_main(raw_data_directory, processed_data_directory, preprocess_parameters, process_parameters, process_parameters_filename)
+sw.sorter_main(new_raw_data_directory, processed_data_directory, preprocess_parameters, process_parameters, process_parameters_filename)
 
 
