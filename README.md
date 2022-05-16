@@ -126,3 +126,17 @@ cd ./CatGT-linux/
 chmod +x ./install.sh
 ./install.sh
 ```
+
+### Revised sorter:
+
+1. User config files (channel maps and sorting config files) should be deposited in `user_config_files`.
+
+1. The two example channel maps `chanMap_npx1_staggered.mat` and `chanMap_npx2_hStripe_bottom2.mat` were written for staggered Neuropixel 1.0 probes, and the bottom horizontal strip of a 4-shank Neuropixel 2.0 probe. 
+
+1. The example config file `config_manuel.m` is adjusted and mildly optimized from the file `\eMouse_drift\config_eMouse_drift_KS2.m`, which is part of the kilosort repository.
+
+1. A test script that uses `kilosortbatch`, a wrapper around kilosort, is in the folder `/sandbox/`. It plays well with `npy-matlab` version `b7b0a4e` and `kilosort` version  `1a1fd3a`.
+
+1. Once kilosort has run, waveforms should be inspected with phy, e.g. `phy template-gui D:\NPX_DATA\manuel\tmp\TowersTask_g0_imec2\params.py`
+
+1. TODO: ks2_run is not needed anymore. Some general cleanup.
