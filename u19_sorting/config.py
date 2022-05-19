@@ -12,6 +12,9 @@ parameter_dir = home_dir+'ParameterFiles/'
 process_parameter_file = parameter_dir+"process_paramset_{}.json"
 preprocess_parameter_file = parameter_dir+"preprocess_paramset_{}.json"
 
+chanmap_dir = home_dir+'ChanMapFiles/' 
+chanmap_file = chanmap_dir+"chanmap_{}.mat"
+
 #Repository dir is two up of this config file
 repository_dir = os.path.abspath(os.path.realpath(__file__)+ "/../../")
 
@@ -22,7 +25,11 @@ matlab_scripts = pathlib.Path(repository_dir, "u19_sorting", "matlab_scripts")
 
 
 sorters_names = {
-    'Kilosort':      'Kilosort',
-    'Kilosort2':     'Kilosort2',
+    'kilosort':      'Kilosort',
+    'kilosort2':     'Kilosort2',
     'SpikeInterface':'spike_interface'
+}
+
+preproc_tools = {
+    'catgt':      'catgt',
 }

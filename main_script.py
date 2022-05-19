@@ -24,19 +24,12 @@ processed_data_directory = os.environ['processed_data_directory']
 raw_data_directory = pathlib.Path(config.root_raw_data_dir,raw_data_directory)
 processed_data_directory = pathlib.Path(config.root_processed_data_dir,processed_data_directory)
 
-# Get params files
-process_parameters_filename = config.process_parameter_file.format(recording_process_id)
-with open(process_parameters_filename, 'r') as process_param_file:
-    process_parameters = json.load(process_param_file)
-
-preprocess_parameter_filename   = config.preprocess_parameter_file.format(recording_process_id)
-with open(preprocess_parameter_filename, 'r') as preprocess_param_file:
-    preprocess_parameters = json.load(preprocess_param_file)
+print('raw_data_directory', raw_data_directory)
 
 #Preprocess main
-new_raw_data_directory = pw.preprocess_main(raw_data_directory, processed_data_directory, preprocess_parameters)
+new_raw_data_directory = pw.preprocess_main(recording_process_id, raw_data_directory, processed_data_directory)
 
 #Sort main
-sw.sorter_main(new_raw_data_directory, processed_data_directory, preprocess_parameters, process_parameters, process_parameters_filename)
+sw.sorter_main(recording_process_id, new_raw_data_directory, processed_data_directory)
 
 

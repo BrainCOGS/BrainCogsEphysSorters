@@ -4,21 +4,31 @@ import re
 import os
 import pathlib
 import subprocess
-
-from glob import iglob
+import json
+import glob
 
 import u19_sorting.config as config
 import u19_sorting.utils as utils
 
 
-def preprocess_main(raw_data_directory, processed_data_directory, preprocess_parameters):
+def preprocess_main(recording_process_id, raw_data_directory, processed_data_directory):
+
+    preprocess_parameter_filename   = config.preprocess_parameter_file.format(recording_process_id)
+    with open(preprocess_parameter_filename, 'r') as preprocess_param_file:
+        preprocess_parameters = json.load(preprocess_param_file)
 
     #Create path structure if not in place
+    print('processed_data_directory  ........', processed_data_directory)
     pathlib.Path(processed_data_directory).mkdir(parents=True, exist_ok=True)
     new_raw_data_directory = raw_data_directory
+    print(new_raw_data_directory)
 
-    if 'cat_gt' in preprocess_parameters and preprocess_parameters['cat_gt']['use_cat_gt']:
-        new_raw_data_directory = cat_gt.run_cat_gt(new_raw_data_directory, processed_data_directory, preprocess_parameters['cat_gt']['cat_gt_params'])
+    for this_preparam in preprocess_parameters:
+        print('this_preparam', this_preparam)
+        if config.preproc_tools['catgt'] in this_preparam:
+            catgt_output_dir = pathlib.Path(processed_data_directory, config.preproc_tools['catgt']+"_output")
+            pathlib.Path(catgt_output_dir).mkdir(parents=True, exist_ok=True)
+            new_raw_data_directory = cat_gt.run_cat_gt(new_raw_data_directory, catgt_output_dir, this_preparam[config.preproc_tools['catgt']])
 
     return new_raw_data_directory
 
@@ -29,11 +39,22 @@ class cat_gt():
 
 
     @staticmethod
-    def run_cat_gt(raw_data_directory, processed_data_directory, cat_gt_params):
+    def run_cat_gt(raw_data_directory, catgt_output_dir, cat_gt_params):
 
+        processed_data_directory = catgt_output_dir.parents[0]
+        already_processed = cat_gt.cat_gt_check_output(catgt_output_dir)
+
+        #Don't do anything if we are on lazy mode
+        if already_processed:
+            return catgt_output_dir
+        #if cat_gt_params['lazy'] == True and already_processed:
+        #    return cat_gt_output_dir
+            
         cat_gt_params['dir']  = raw_data_directory
         cat_gt_params['dir']  = cat_gt_params['dir'].parents[1]
-        cat_gt_params['dest'] = processed_data_directory
+        cat_gt_params['dest'] = catgt_output_dir.parents[0]
+
+        print('cat_gt_params', cat_gt_params)
         
         #Get cat_gt params from probe dir name
         probe_path = pathlib.PurePath(raw_data_directory)
@@ -44,15 +65,17 @@ class cat_gt():
         cat_gt_params = {**cat_gt_params, **extra_cat_gt_params}
 
         #Create the final cat_gt_command and run
-        #cat_gt_command = cat_gt.create_cat_gt_command(cat_gt_params)
-        #print(cat_gt_command)
-        #p = subprocess.Popen(cat_gt_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        #p.wait()
-        #stdout, stderr = p.communicate()
+        cat_gt_command = cat_gt.create_cat_gt_command(cat_gt_params)
+        print(cat_gt_command)
+        p = subprocess.Popen(cat_gt_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p.wait()
+        stdout, stderr = p.communicate()
+        print('stdout ..................................', stdout)
+        print('stderr ..................................  xxxxx', stderr)
 
-        new_raw_data_directory = cat_gt.cat_gt_postprocess_directory(processed_data_directory)
+        cat_gt.cat_gt_postprocess_directory(processed_data_directory, catgt_output_dir)
 
-        return new_raw_data_directory
+        return catgt_output_dir
 
     @staticmethod
     def create_cat_gt_command(cat_gt_params):
@@ -65,6 +88,8 @@ class cat_gt():
             if key == "extras":
                 extra_params = ["-"+i for i in value]
                 cat_gt_command.extend(extra_params)
+            elif key == "lazy":
+                continue
             else:
                 if isinstance(value, list):
                     str_value = [str(i) for i in value]
@@ -104,7 +129,7 @@ class cat_gt():
         return extra_cat_gt_params
 
     @staticmethod
-    def cat_gt_postprocess_directory(processed_data_directory):
+    def cat_gt_postprocess_directory(processed_data_directory, cat_gt_output_dir):
 
         #Find catgt head directory in processed data dir
         catgt_dir = str()
@@ -115,7 +140,7 @@ class cat_gt():
                 dirname = x.name
                 if dirname[0:5] == 'catgt':
                     old_catgt_dir = pathlib.Path(path_process_dir, dirname).as_posix()
-                    catgt_dir = pathlib.Path(path_process_dir, 'catgt_preprocessing').as_posix()
+                    catgt_dir = cat_gt_output_dir.as_posix()
                     os.rename(old_catgt_dir, catgt_dir)
                     break
 
@@ -126,4 +151,26 @@ class cat_gt():
             
         #Delete child directories and move catgt results straight into catgt directory
         utils.move_to_root_folder(catgt_dir, catgt_dir)
-        return pathlib.Path(catgt_dir)
+
+
+    @staticmethod
+    def cat_gt_check_output(cat_gt_output_dir):
+
+        file_patterns= ['/*ap.bin', '/*ap.meta']
+
+        child_dirs = [x[0] for x in os.walk(cat_gt_output_dir)]
+        patterns_found = 0
+        for dir in child_dirs:
+            for pat in file_patterns:
+                found_file = glob.glob(dir+pat)
+                if len(found_file) > 0:
+                    patterns_found = 1
+                    break
+
+            if patterns_found:
+                break
+
+        if patterns_found:
+            return 1
+        else:
+            return 0

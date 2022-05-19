@@ -26,7 +26,7 @@ function run_ks2(parameter_file, raw_directory, processed_directory, dir_pattern
         
         %% 2) Parse input arguments
         rootZ = raw_directory;
-        rootH = rootZ;
+        rootH = processed_directory
         
         if nargin <= 3
             dir_pattern = '*.ap.bin'; 
@@ -34,33 +34,40 @@ function run_ks2(parameter_file, raw_directory, processed_directory, dir_pattern
         if nargin <= 4
             channel_map_file = fullfile(kilosort2_dir, 'configFiles' ,'neuropixPhase3B1_kilosortChanMap.mat'); 
         end
+        ops.chanMap     = channel_map_file;
         disp(channel_map_file)
         
         %% 3) get IBL params
-        ops = ks2_custom_params(channel_map_file, rootH);
-        %[ops, success] = loadJSONfile(parameter_file);
-        %if ~success
-        %    error('Parameter file cannot be read, try again')
-        %end
+        %ops = ks2_custom_params(channel_map_file, rootH);
+        [ops, success] = loadJSONfile(parameter_file);
+        if ~success
+            error('Parameter file cannot be read, try again')
+        end
+        % Two params not from param file
+        if ops.trange(2) > 99999999
+            ops.trange(2) = Inf
+        end
+        ops.fproc       = fullfile(processed_directory, 'temp_wh.dat'); % proc file on a fast SSD
+        ops.chanMap     = channel_map_file;
         
         %% 4) KS2 run
         fprintf('Looking for data inside %s \n', rootZ)
         
         % is there a channel map file in this folder?
-        fs = dir(fullfile(rootZ, 'chan*.mat'));
+        fs = dir(fullfile(raw_directory, 'chan*.mat'));
         if ~isempty(fs)
             ops.chanMap = fullfile(rootZ, fs(1).name);
         end
         
         % find the binary file
-        ops.fbinary = fullfile(rootZ, getfield(dir(fullfile(rootZ, dir_pattern)), 'name'));
+        ops.fbinary = fullfile(raw_directory, getfield(dir(fullfile(raw_directory, dir_pattern)), 'name'));
         
         % preprocess data to create temp_wh.dat
         rez = preprocessDataSub(ops);
         
         % time-reordering as a function of drift
         rez = clusterSingleBatches(rez);
-        save(fullfile(rootZ, 'rez.mat'), 'rez', '-v7.3');
+        save(fullfile(processed_directory, 'rez.mat'), 'rez', '-v7.3');
         
         % main tracking and template matching algorithm
         rez = learnAndSolve8b(rez);

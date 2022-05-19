@@ -21,44 +21,25 @@
 %% Then just run:
 % kilosortbatch(ksdir, phydir, data, tmp, config, chanmap, numchans, start, stop, sig, highpass, blocks)
 
+function kilosortbatch(parameter_file, raw_directory, processed_directory, channel_map_file, dir_pattern)
 
-function kilosortbatch(ksdir,phydir,data,tmp,config,chanmap,numchans,start,stop,sig,fshigh,nblocks)
-    % Sanity checks
-    if ~(exist('ksdir','var'))
-        error(['ksdir not defined'])
+    this_dir = fileparts(which('kilosortbatch'));
+    braincogs_ephys_sorters_dir = fileparts(fileparts(this_dir));
+
+    disp(this_dir)
+
+    % Import dependencies.
+    kilosort_dir = fullfile(braincogs_ephys_sorters_dir, 'sorters', 'Kilosort');
+    npy_matlab_dir = fullfile(braincogs_ephys_sorters_dir, 'sorters', 'npy-matlab');
+    addpath(genpath(kilosort_dir)) % path to kilosort folder
+    addpath(genpath(npy_matlab_dir))
+
+    if nargin <= 3
+        channel_map_file = fullfile(kilosort2_dir, 'configFiles' ,'neuropixPhase3B1_kilosortChanMap.mat'); 
     end
-    if ~(exist('phydir','var'))
-        error(['phydir not defined'])
-    end
-    if ~(exist('data','var'))
-        error(['data not defined'])
-    end
-    if ~(exist('tmp','var'))
-        error(['tmp not defined'])
-    end
-    if ~(exist('config','var'))
-        error(['config not defined'])
-    end
-    if ~(exist('chanmap','var'))
-        error(['chanmap not defined'])
-    end
-    if ~(exist('numchans','var'))
-        error(['numchans not defined'])
-    end
-    if ~(exist('start','var'))
-        error(['start not defined'])
-    end
-    if ~(exist('stop','var'))
-        error(['stop not defined'])
-    end
-    if ~(exist('sig','var'))
-        error(['sig not defined'])
-    end
-    if ~(exist('fshigh','var'))
-        error(['fshigh not defined'])
-    end
-    if ~(exist('nblocks','var'))
-        error(['nblocks not defined'])
+
+    if nargin <= 4
+        dir_pattern = '*.ap.bin'; 
     end
 
     % Silly CUDA 9 Error workaround (only happens on Turing and above cards)
@@ -75,34 +56,32 @@ function kilosortbatch(ksdir,phydir,data,tmp,config,chanmap,numchans,start,stop,
     catch ME
     end
 
-    % Actual program here.
-    % Import dependencies.
-    addpath(genpath(ksdir));
-    addpath(phydir);
-    
+    % Actual program here.    
     % Set up config.
-    ops.trange = [ start stop ];
-    ops.NchanTOT = numchans;
-    run(config);
-    ops.fproc = fullfile(tmp, 'temp_wh.dat');
-    ops.chanMap = chanmap;
-    
-    % Run Kilosort
-    fprintf('Looking for data inside %s \n', data);
-    fs = dir(fullfile(data, 'chan*.mat'));
-    if ~isempty(fs)
-    	ops.chanMap = fullfile(data, fs(1).name);
+    [ops, success] = loadJSONfile(parameter_file);
+    % trange cannot be inf
+    if ops.trange(2) > 99999999
+        ops.trange(2) = Inf
     end
 
-    ops.sig        = sig;  % spatial smoothness constant for registration
-    ops.fshigh     = fshigh; % high-pass more aggresively
-    ops.nblocks    = nblocks; % blocks for registration. 0 turns it off, 1 does rigid registration. Replaces "datashift" option. 
+    ops.fproc = fullfile(processed_directory, 'temp_wh.dat');
+    ops.chanMap = channel_map_file;
+    
+    % Run Kilosort
+    fprintf('Looking for data inside %s \n', raw_directory);
+    % fs = dir(fullfile(raw_directory, 'chan*.mat'));
+    % if ~isempty(fs)
+    % 	ops.chanMap = fullfile(raw_directory, fs(1).name);
+    % end
+
+    %ops.sig        = sig;  % spatial smoothness constant for registration
+    %ops.fshigh     = fshigh; % high-pass more aggresively
+    %ops.nblocks    = nblocks; % blocks for registration. 0 turns it off, 1 does rigid registration. Replaces "datashift" option. 
 
     % find the binary file
-    fs          = [dir(fullfile(data, '*.bin')) dir(fullfile(data, '*.dat'))];
-    ops.fbinary = fullfile(data, fs(1).name);
+    fs          = [dir(fullfile(raw_directory, '*.bin')) dir(fullfile(raw_directory, '*.dat'))];
+    ops.fbinary = fullfile(raw_directory, fs(1).name);
     
-
     rez                = preprocessDataSub(ops);
     rez                = datashift2(rez, 1);
 
@@ -118,13 +97,13 @@ function kilosortbatch(ksdir,phydir,data,tmp,config,chanmap,numchans,start,stop,
 
     % save final results as rez2
     fprintf('Saving final results in phy \n')
-    rezToPhy2(rez, data);
+    rezToPhy2(rez, processed_directory);
     
     % saving figures
     h(1) = figure(1);
     h(2) = figure(2);
     h(3) = figure(3);
-    savefig(h, [data, '\kilosort_overview.fig'])
+    savefig(h, fullfile(processed_directory, 'kilosort_overview.fig'))
     close(h);
     
 end

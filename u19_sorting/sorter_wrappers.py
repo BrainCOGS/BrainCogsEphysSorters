@@ -3,10 +3,11 @@
 import pathlib
 import os
 import subprocess
+import json
 import u19_sorting.config as config
 
 
-def sorter_main(raw_directory, processed_directory, preprocess_parameters, process_parameters, process_parameter_filename):
+def sorter_main(recording_process_id, raw_directory, processed_directory):
     """ Main function to call appropiate sorter
         Args:
             raw_directory               (str):   Directory where raw (or preprocessed) data is located 
@@ -16,13 +17,27 @@ def sorter_main(raw_directory, processed_directory, preprocess_parameters, proce
             process_parameter_filename  (dict):  Filename of json with sorting parameters
     """
 
-    hash = get_submodule_hash(preprocess_parameters['clustering_method'])
+    # Get param file
+    process_parameters_filename = config.process_parameter_file.format(recording_process_id)
+    with open(process_parameters_filename, 'r') as process_param_file:
+        process_parameters = json.load(process_param_file)
+
+    # Get chanmap file
+    chanmap_filename = config.chanmap_file.format(recording_process_id)
+
+    sorter = config.sorters_names[process_parameters['clustering_method']]
+
+
+    sorter_processed_directory = pathlib.Path(processed_directory, process_parameters['clustering_method']+'_output')
+    pathlib.Path(sorter_processed_directory).mkdir(parents=True, exist_ok=True)
+
+    hash = get_submodule_hash(sorter)
     print('hash submodule', hash)
 
-    if preprocess_parameters['clustering_method'] == config.sorters_names['Kilosort2']:
-
-        
-        Kilosort2.run_Kilosort2(raw_directory, processed_directory, process_parameter_filename)
+    if sorter == config.sorters_names['kilosort2']:
+        Kilosort2.run_Kilosort2(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
+    elif sorter == config.sorters_names['kilosort']:
+        Kilosort.run_Kilosort(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
 
     else:
         print("skipping")
@@ -32,10 +47,10 @@ class Kilosort2():
     """ Kilosort2 caller functions """
 
     #This library directory
-    ks2_directory = pathlib.Path(config.sorters_dir, config.sorters_names['Kilosort2']).as_posix()
+    ks2_directory = pathlib.Path(config.sorters_dir, config.sorters_names['kilosort2']).as_posix()
 
     @staticmethod
-    def run_Kilosort2(raw_directory, processed_directory, process_parameter_filename):
+    def run_Kilosort2(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that calls Kilosort2
                 
             Args:
@@ -44,13 +59,13 @@ class Kilosort2():
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        ks2_command = Kilosort2.create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename)
+        ks2_command = Kilosort2.create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
         os.system(ks2_command)
 
         
 
     @staticmethod
-    def create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename):
+    def create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that creates the command to call matlab kilosort2 script
                 
             Args:
@@ -61,7 +76,9 @@ class Kilosort2():
 
         matlab_command = "addpath(genpath('" + Kilosort2.ks2_directory + "'));  \
         addpath('" + config.matlab_scripts.as_posix() + "'); \
-        run_ks2('" + process_parameter_filename + "','" + raw_directory.as_posix() + "','"  + processed_directory.as_posix() + "'); exit"
+        run_ks2('" + process_parameter_filename + "','" \
+            + raw_directory.as_posix() + "','"  + processed_directory.as_posix() + "','"\
+                + chanmap_filename + "'); exit"
 
         ks2_command =  ['matlab', '-nodisplay', '-nosplash', '-r']
         ks2_command = ' '.join(ks2_command)
@@ -71,6 +88,51 @@ class Kilosort2():
         
         return ks2_command
 
+
+class Kilosort():
+    """ Kilosort caller functions """
+
+    #This library directory
+    ks_directory = pathlib.Path(config.sorters_dir, config.sorters_names['kilosort']).as_posix()
+
+    @staticmethod
+    def run_Kilosort(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
+        """ Function that calls Kilosort
+                
+            Args:
+                raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+                processed_directory         (str):   Directory where processed data will be stored
+                process_parameter_filename  (dict):  Filename of json with sorting parameters
+        """
+
+        ks_command = Kilosort.create_Kilosort_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
+        os.system(ks_command)
+
+        
+
+    @staticmethod
+    def create_Kilosort_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
+        """ Function that creates the command to call matlab kilosort2 script
+                
+            Args:
+                raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+                processed_directory         (str):   Directory where processed data will be stored
+                process_parameter_filename  (dict):  Filename of json with sorting parameters
+        """
+
+        matlab_command = "addpath(genpath('" + Kilosort.ks_directory + "'));  \
+        addpath('" + config.matlab_scripts.as_posix() + "'); \
+        kilosortbatch('" + process_parameter_filename + "','" \
+            + raw_directory.as_posix() + "','"  + processed_directory.as_posix() + "','"\
+                + chanmap_filename + "'); exit"
+
+        ks_command =  ['matlab', '-nodisplay', '-nosplash', '-r']
+        ks_command = ' '.join(ks_command)
+        ks_command += ' "'
+        ks_command += matlab_command 
+        ks_command += '"'
+        
+        return ks_command
 
 def get_submodule_hash(sorter_submodule):
     """ Get specific submodule current hash commit
