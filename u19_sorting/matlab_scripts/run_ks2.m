@@ -1,4 +1,4 @@
-function run_ks2(parameter_file, raw_directory, processed_directory, dir_pattern, channel_map_file)
+function run_ks2(parameter_file, raw_directory, processed_directory, channel_map_file, dir_pattern)
     % rootZ is the directory containing the raw AP traces, one probe per folder
     % rootH is the scratch directory, SSD drive, to memmap binary data
     %
@@ -26,16 +26,15 @@ function run_ks2(parameter_file, raw_directory, processed_directory, dir_pattern
         
         %% 2) Parse input arguments
         rootZ = raw_directory;
-        rootH = processed_directory
+        rootH = processed_directory;
         
         if nargin <= 3
-            dir_pattern = '*.ap.bin'; 
-        end
-        if nargin <= 4
             channel_map_file = fullfile(kilosort2_dir, 'configFiles' ,'neuropixPhase3B1_kilosortChanMap.mat'); 
         end
-        ops.chanMap     = channel_map_file;
-        disp(channel_map_file)
+    
+        if nargin <= 4
+            dir_pattern = '*.ap.bin'; 
+        end
         
         %% 3) get IBL params
         %ops = ks2_custom_params(channel_map_file, rootH);
@@ -47,17 +46,13 @@ function run_ks2(parameter_file, raw_directory, processed_directory, dir_pattern
         if ops.trange(2) > 99999999
             ops.trange(2) = Inf
         end
-        ops.fproc       = fullfile(processed_directory, 'temp_wh.dat'); % proc file on a fast SSD
         ops.chanMap     = channel_map_file;
+        disp(channel_map_file)
+        ops.fproc       = fullfile(processed_directory, 'temp_wh.dat'); % proc file on a fast SSD
         
         %% 4) KS2 run
         fprintf('Looking for data inside %s \n', rootZ)
-        
-        % is there a channel map file in this folder?
-        fs = dir(fullfile(raw_directory, 'chan*.mat'));
-        if ~isempty(fs)
-            ops.chanMap = fullfile(rootZ, fs(1).name);
-        end
+        disp(raw_directory)
         
         % find the binary file
         ops.fbinary = fullfile(raw_directory, getfield(dir(fullfile(raw_directory, dir_pattern)), 'name'));

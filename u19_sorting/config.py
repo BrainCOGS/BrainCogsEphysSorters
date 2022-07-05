@@ -33,3 +33,7 @@ sorters_names = {
 preproc_tools = {
     'catgt':      'catgt',
 }
+
+preproc_tools_delete_post = [
+    'catgt'
+]

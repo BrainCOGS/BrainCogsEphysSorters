@@ -32,4 +32,7 @@ new_raw_data_directory = pw.preprocess_main(recording_process_id, raw_data_direc
 #Sort main
 sw.sorter_main(recording_process_id, new_raw_data_directory, processed_data_directory)
 
+#Delete unnecesary results directory
+pw.post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory)
+
 

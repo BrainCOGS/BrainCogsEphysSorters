@@ -59,10 +59,43 @@ class Kilosort2():
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
+        Kilosort2.create_Kilosort2_run_script(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
         ks2_command = Kilosort2.create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
-        os.system(ks2_command)
+        print('ks2_command .....', ks2_command)
 
-        
+        os.chdir(config.matlab_scripts)
+        #os.system(ks2_command)
+        p = subprocess.run(ks2_command, universal_newlines=True, shell=True, capture_output=True)
+
+        print('stderr here', p.stderr)
+        print('stdout', p.stdout)
+
+        if  p.stderr:
+            error = json.loads(p.stderr.decode('UTF-8'))
+            raise Exception(error)
+        stdout = p.stdout
+        idx_error = stdout.find('Error')
+        if idx_error:
+            raise Exception(stdout[idx_error:])
+
+
+    @staticmethod
+    def create_Kilosort2_run_script(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
+        """ Function that creates the a .m script that add paths and run kilosort2 script
+                
+            Args:
+                raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+                processed_directory         (str):   Directory where processed data will be stored
+                process_parameter_filename  (dict):  Filename of json with sorting parameters
+        """
+
+        matlab_command = "addpath(genpath('" + Kilosort2.ks2_directory + "'));\n \
+        addpath('" + config.matlab_scripts.as_posix() + "');\n \
+        run_ks2('" + process_parameter_filename + "','" \
+            + raw_directory.as_posix() + "','"  + processed_directory.as_posix() + "','"\
+                + chanmap_filename + "'); exit"
+        with open(config.run_ks_filepath, "w") as f:
+            f.write(matlab_command)
 
     @staticmethod
     def create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
@@ -73,6 +106,9 @@ class Kilosort2():
                 processed_directory         (str):   Directory where processed data will be stored
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
+
+        #ks2_command =  ['matlab', '-nodisplay', '-nosplash', '-r', "' disp(pwd); addpath(genpath(pwd)); " + config.run_ks_script + "; exit'"]
+        #ks2_command = ' '.join(ks2_command)
 
         matlab_command = "addpath(genpath('" + Kilosort2.ks2_directory + "'));  \
         addpath('" + config.matlab_scripts.as_posix() + "'); \
@@ -85,7 +121,7 @@ class Kilosort2():
         ks2_command += ' "'
         ks2_command += matlab_command 
         ks2_command += '"'
-        
+
         return ks2_command
 
 
@@ -106,7 +142,11 @@ class Kilosort():
         """
 
         ks_command = Kilosort.create_Kilosort_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
-        os.system(ks_command)
+        p = subprocess.run(ks_command, capture_output=True)
+
+        if  p.stderr:
+            error = json.loads(p.stderr.decode('UTF-8'))
+            raise Exception(error)
 
         
 

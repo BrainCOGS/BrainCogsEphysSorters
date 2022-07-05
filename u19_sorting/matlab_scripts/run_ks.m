@@ -1,0 +1,3 @@
+addpath(genpath('/scratch/gpfs/BRAINCOGS/electorphysiology_processing/BrainCogsEphysSorters/sorters/Kilosort2'));
+         addpath('/scratch/gpfs/BRAINCOGS/electorphysiology_processing/BrainCogsEphysSorters/u19_sorting/matlab_scripts');
+         run_ks2('/scratch/gpfs/BRAINCOGS/ParameterFiles/process_paramset_118.json','/scratch/gpfs/BRAINCOGS/Data/Processed/electrophysiology/jjulian/jjulian_jj045/20220704/jjulian_jj045_07042022_g0/jjulian_jj045_07042022_g0_imec1/job_id_118/catgt_output','/scratch/gpfs/BRAINCOGS/Data/Processed/electrophysiology/jjulian/jjulian_jj045/20220704/jjulian_jj045_07042022_g0/jjulian_jj045_07042022_g0_imec1/job_id_118/kilosort2_output','/scratch/gpfs/BRAINCOGS/ChanMapFiles/chanmap_118.mat'); exit

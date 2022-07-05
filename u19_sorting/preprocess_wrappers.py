@@ -6,6 +6,7 @@ import pathlib
 import subprocess
 import json
 import glob
+import shutil
 
 import u19_sorting.config as config
 import u19_sorting.utils as utils
@@ -31,6 +32,14 @@ def preprocess_main(recording_process_id, raw_data_directory, processed_data_dir
             new_raw_data_directory = cat_gt.run_cat_gt(new_raw_data_directory, catgt_output_dir, this_preparam[config.preproc_tools['catgt']])
 
     return new_raw_data_directory
+
+def post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory):
+
+    # Delete all unnecesary preprocessing tools results (to save storage)
+    for this_preproc_tool in config.preproc_tools_delete_post:
+        this_tool_output_dir = pathlib.Path(processed_data_directory, this_preproc_tool+"_output")
+        shutil.rmtree(this_tool_output_dir)
+
 
 class cat_gt():
 
@@ -70,8 +79,10 @@ class cat_gt():
         p = subprocess.Popen(cat_gt_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         p.wait()
         stdout, stderr = p.communicate()
-        print('stdout ..................................', stdout)
-        print('stderr ..................................  xxxxx', stderr)
+
+        if stderr:
+            error = json.loads(stderr.decode('UTF-8'))
+            raise Exception(error)
 
         cat_gt.cat_gt_postprocess_directory(processed_data_directory, catgt_output_dir)
 
