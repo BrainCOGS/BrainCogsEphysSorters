@@ -59,26 +59,18 @@ class Kilosort2():
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        Kilosort2.create_Kilosort2_run_script(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
         ks2_command = Kilosort2.create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
         print('ks2_command .....', ks2_command)
-
-        os.chdir(config.matlab_scripts)
-        #os.system(ks2_command)
         p = subprocess.run(ks2_command, universal_newlines=True, shell=True, capture_output=True)
 
         print('stderr here', p.stderr)
         print('stdout', p.stdout)
 
         if  p.stderr:
-            error = json.loads(p.stderr.decode('UTF-8'))
-            raise Exception(error)
-        stdout = p.stdout
-        idx_error = stdout.find('Error')
-        if idx_error:
-            raise Exception(stdout[idx_error:])
+            raise Exception(p.stderr)
 
 
+    '''
     @staticmethod
     def create_Kilosort2_run_script(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that creates the a .m script that add paths and run kilosort2 script
@@ -96,6 +88,7 @@ class Kilosort2():
                 + chanmap_filename + "'); exit"
         with open(config.run_ks_filepath, "w") as f:
             f.write(matlab_command)
+    '''
 
     @staticmethod
     def create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
@@ -142,11 +135,14 @@ class Kilosort():
         """
 
         ks_command = Kilosort.create_Kilosort_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
-        p = subprocess.run(ks_command, capture_output=True)
+        print('ks_command .....', ks_command)
+        p = subprocess.run(ks_command, universal_newlines=True, shell=True, capture_output=True)
+
+        print('stderr here', p.stderr)
+        print('stdout', p.stdout)
 
         if  p.stderr:
-            error = json.loads(p.stderr.decode('UTF-8'))
-            raise Exception(error)
+            raise Exception(p.stderr)
 
         
 

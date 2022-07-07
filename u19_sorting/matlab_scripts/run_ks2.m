@@ -98,14 +98,15 @@ function run_ks2(parameter_file, raw_directory, processed_directory, channel_map
         end
         fclose(fid);
         
-    catch
-        a = lasterror;
-        str=[a.message newline];
-        for m=1:length(a.stack)
-            str = [str 'Error in ' a.stack(m).file ' line : ' num2str(a.stack(m).line) newline];
+    catch exception
+        str=[exception.message newline];
+        for m=1:length(exception.stack)
+            str = [str 'Error in ' exception.stack(m).file ' line : ' num2str(exception.stack(m).line) newline];
         end
-        disp(str)
-        disp('run_ks2.m failed') % this is used to find out that matlab failed in stdout
+        fprintf(str)
+        %disp(str)
+        %disp('run_ks2.m failed') % this is used to find out that matlab failed in stdout
+        throw(exception)
     end
     
     end
