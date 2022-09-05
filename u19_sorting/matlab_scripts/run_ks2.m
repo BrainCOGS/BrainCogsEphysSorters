@@ -97,6 +97,13 @@ function run_ks2(parameter_file, raw_directory, processed_directory, channel_map
             fwrite(fid,['ops.' ff{1} ' = ' str ';' newline]);
         end
         fclose(fid);
+
+        % saving figures
+        h(1) = figure(1);
+        h(2) = figure(2);
+        h(3) = figure(3);
+        savefig(h, fullfile(processed_directory, 'kilosort_overview.fig'))
+        close(h);
         
     catch exception
         str=[exception.message newline];

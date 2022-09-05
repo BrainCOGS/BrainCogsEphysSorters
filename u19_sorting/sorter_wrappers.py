@@ -42,6 +42,8 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
     else:
         print("skipping")
 
+    return sorter_processed_directory
+
 
 class Kilosort2():
     """ Kilosort2 caller functions """
