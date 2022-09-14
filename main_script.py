@@ -6,6 +6,7 @@ import os
 
 import u19_sorting.config as config
 import u19_sorting.preprocess_wrappers as pw
+import u19_sorting.postprocess_wrappers as ppw
 import u19_sorting.sorter_wrappers as sw
 
 import subprocess
@@ -29,23 +30,15 @@ processed_data_directory = pathlib.Path(config.root_processed_data_dir,processed
 print('raw_data_directory', raw_data_directory)
 
 #Preprocess main
-#new_raw_data_directory = pw.preprocess_main(recording_process_id, raw_data_directory, processed_data_directory)
+new_raw_data_directory = pw.preprocess_main(recording_process_id, raw_data_directory, processed_data_directory)
 
 #Sort main
-#sorter_processed_directory = sw.sorter_main(recording_process_id, new_raw_data_directory, processed_data_directory)
+sorter_processed_directory = sw.sorter_main(recording_process_id, new_raw_data_directory, processed_data_directory)
 
 #Delete unnecesary results directory
-#pw.post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory)
+pw.post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory)
 
+# sorter_processed_directory = pathlib.Path(processed_data_directory, 'kilosort_output')
+ppw.post_process_main(raw_data_directory, processed_data_directory, sorter_processed_directory)
 
-sorter_processed_directory = pathlib.Path(processed_data_directory, 'kilosort_output')
-
-ibl_output_dir = pathlib.Path(processed_data_directory, 'ibl_data')
-pathlib.Path(ibl_output_dir).mkdir(parents=True, exist_ok=True)
-
-command = 'prepare_ephys_data_ibl_script.sh ' +\
-     config.ibl_atlas_script + ' ' + raw_data_directory +\
-        ' ' + sorter_processed_directory.as_posix() + ' ' + ibl_output_dir.as_posix()
-
-p = subprocess.run(command, shell=True)
 

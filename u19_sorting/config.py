@@ -20,8 +20,10 @@ repository_dir = os.path.abspath(os.path.realpath(__file__)+ "/../../")
 
 #Repository dir is three up of this config file
 ephys_processing_dir = os.path.abspath(os.path.realpath(__file__)+ "/../../..")
-ibl_post_processing_dir =  pathlib.Path(repository_dir, 'ibl_atlas_post_processing', 'iblapps')
+ibl_post_processing_dir =  pathlib.Path(ephys_processing_dir, 'ibl_atlas_post_processing', 'iblapps')
 ibl_atlas_script = pathlib.Path(ibl_post_processing_dir, 'prepare_ephys_data_ibl.py')
+ibl_atlas_shell_script = pathlib.Path(repository_dir, 'prepare_ephys_data_ibl_script.sh')
+
 
 #Main preprocess libs and sorters directories
 preprocess_libs_dir = pathlib.Path(repository_dir, 'preprocess_libs')
