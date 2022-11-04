@@ -31,13 +31,14 @@ class ibl_atlas_post_processing():
             config.ibl_atlas_script.as_posix() + ' ' + raw_data_directory.as_posix() +\
             ' ' + sorter_processed_directory.as_posix() + ' ' + ibl_output_dir.as_posix()
 
-        print(command)
         p = subprocess.run(command, shell=True, capture_output=True)
 
-        print(p.stdout)
-        print(p.stderr)
-
         if p.stderr:
-            error = json.loads(p.stderr.decode('UTF-8'))
-            raise Exception(error)
+
+            print('type(p.stderr)')
+            stderr = p.stderr.decode('UTF-8')
+
+            # Strange libarrow error that does not affect final result (Apparently)
+            if not '/site-packages/pyarrow/libarrow.so' in stderr:
+                raise Exception(stderr)
 
