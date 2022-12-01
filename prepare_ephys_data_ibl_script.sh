@@ -1,7 +1,7 @@
 
 #!/bin/bash
 
-module load anaconda3/5.3.1
+module load anaconda3/2022.5
 conda activate iblenv
 
 echo ${PWD}
