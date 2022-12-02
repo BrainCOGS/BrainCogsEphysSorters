@@ -82,7 +82,7 @@ class cat_gt():
         stdout, stderr = p.communicate()
 
         if stderr:
-            error = json.loads(stderr.decode('UTF-8'))
+            error = stderr.decode('UTF-8')
             raise Exception(error)
 
         cat_gt.cat_gt_postprocess_directory(processed_data_directory, catgt_output_dir)
