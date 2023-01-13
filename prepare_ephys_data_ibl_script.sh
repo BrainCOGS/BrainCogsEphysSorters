@@ -1,11 +1,12 @@
 
-#!/bin/bash
+#!/bin/bash 
 
-module load anaconda3/2022.5
-read -t 5 -p
-conda activate iblenv
+#module load anaconda3/2022.5
+#read -t 5
+#conda activate iblenv
+#conda info
 
 echo ${PWD}
 echo ....................
 echo $1
-python $1 $2 $3 $4
+/home/u19prod/.conda/envs/iblenv/bin/python $1 $2 $3 $4

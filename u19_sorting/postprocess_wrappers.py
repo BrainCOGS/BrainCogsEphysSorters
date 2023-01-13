@@ -33,12 +33,21 @@ class ibl_atlas_post_processing():
 
         p = subprocess.run(command, shell=True, capture_output=True)
 
+        print('p.stderr', p.stderr)
+        print('p.stdout', p.stdout)
+        stderr = p.stderr.decode('UTF-8')
+        stdout = p.stderr.decode('UTF-8')
+
+        print(stderr)
+        print(stdout)
+
         if p.stderr:
 
             print('type(p.stderr)')
             stderr = p.stderr.decode('UTF-8')
+            #raise Exception(stderr)
 
-            # Strange libarrow error that does not affect final result (Apparently)
-            if not '/site-packages/pyarrow/libarrow.so' in stderr:
-                raise Exception(stderr)
 
+
+
+# /home/u19prod/.conda/envs/iblenv/bin/python /scratch/gpfs/BRAINCOGS/electrophysiology_processing/ibl_atlas_post_processing/iblapps/prepare_ephys_data_ibl.py /scratch/gpfs/BRAINCOGS/Data/Raw/electrophysiology/ms81/ms81_M020/20221110_g0/towersTask_g0/towersTask_g0_imec0 /scratch/gpfs/BRAINCOGS/Data/Processed/electrophysiology/ms81/ms81_M020/20221110_g0/towersTask_g0/towersTask_g0_imec0/job_id_320/kilosort_output /scratch/gpfs/BRAINCOGS/Data/Processed/electrophysiology/ms81/ms81_M020/20221110_g0/towersTask_g0/towersTask_g0_imec0/job_id_320/ibl_data
