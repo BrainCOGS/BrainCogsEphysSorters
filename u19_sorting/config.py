@@ -3,6 +3,7 @@ import os
 import pathlib
 import u19_sorting.utils as utils
 
+'''
 this_hostname = utils.get_hostname()
 princeton_computing_hosts = ['della', 'tiger']
 pni_computing_hosts = ['spock', 'scotty']
@@ -12,16 +13,20 @@ if any(host in this_hostname for host in princeton_computing_hosts):
     home_dir = '/scratch/gpfs/BRAINCOGS/'
 #Home dir in pni hosts
 else:
-    home_dir = '/mnt/cup/braininit/shared/repos/AutomaticPipelineProcessing'
+    home_dir = '/mnt/cup/braininit/shared/repos/AutomaticPipelineProcessing/'
+'''
 
-root_raw_data_dir = home_dir+'Data/Raw/electrophysiology'
-root_processed_data_dir = home_dir+'Data/Processed/electrophysiology'
+#Home dir is 4 directories up from this file
+home_dir = os.path.abspath(os.path.realpath(__file__)+ "/../../../../")
 
-parameter_dir = home_dir+'ParameterFiles/' 
+root_raw_data_dir = pathlib.Path(home_dir, 'Data', 'Raw', 'electrophysiology').as_posix()
+root_processed_data_dir = pathlib.Path(home_dir, 'Data', 'Processed', 'electrophysiology').as_posix()
+
+parameter_dir = pathlib.Path(home_dir, 'ParameterFiles').as_posix()
 process_parameter_file = parameter_dir+"process_paramset_{}.json"
 preprocess_parameter_file = parameter_dir+"preprocess_paramset_{}.json"
 
-chanmap_dir = home_dir+'ChanMapFiles/' 
+chanmap_dir = pathlib.Path(home_dir,'ChanMapFiles') .as_posix()
 chanmap_file = chanmap_dir+"chanmap_{}.mat"
 
 #Repository dir is two up of this config file
