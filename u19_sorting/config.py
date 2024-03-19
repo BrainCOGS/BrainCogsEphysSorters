@@ -1,7 +1,7 @@
 
 import os
 import pathlib
-import utils
+import u19_sorting.utils as utils
 
 this_hostname = utils.get_hostname()
 princeton_computing_hosts = ['della', 'tiger']
