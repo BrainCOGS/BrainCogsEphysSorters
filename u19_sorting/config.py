@@ -23,11 +23,11 @@ root_raw_data_dir = pathlib.Path(home_dir, 'Data', 'Raw', 'electrophysiology').a
 root_processed_data_dir = pathlib.Path(home_dir, 'Data', 'Processed', 'electrophysiology').as_posix()
 
 parameter_dir = pathlib.Path(home_dir, 'ParameterFiles').as_posix()
-process_parameter_file = parameter_dir+"process_paramset_{}.json"
-preprocess_parameter_file = parameter_dir+"preprocess_paramset_{}.json"
+process_parameter_file = parameter_dir+"/process_paramset_{}.json"
+preprocess_parameter_file = parameter_dir+"/preprocess_paramset_{}.json"
 
 chanmap_dir = pathlib.Path(home_dir,'ChanMapFiles') .as_posix()
-chanmap_file = chanmap_dir+"chanmap_{}.mat"
+chanmap_file = chanmap_dir+"/chanmap_{}.mat"
 
 #Repository dir is two up of this config file
 repository_dir = os.path.abspath(os.path.realpath(__file__)+ "/../../")
