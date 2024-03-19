@@ -1,9 +1,18 @@
 
 import os
 import pathlib
+import utils
 
+this_hostname = utils.get_hostname()
+princeton_computing_hosts = ['della', 'tiger']
+pni_computing_hosts = ['spock', 'scotty']
 
-home_dir = '/scratch/gpfs/BRAINCOGS/'
+# Home dir if in priceton computing hosts
+if any(host in this_hostname for host in princeton_computing_hosts):
+    home_dir = '/scratch/gpfs/BRAINCOGS/'
+#Home dir in pni hosts
+else:
+    home_dir = '/mnt/cup/braininit/shared/repos/AutomaticPipelineProcessing'
 
 root_raw_data_dir = home_dir+'Data/Raw/electrophysiology'
 root_processed_data_dir = home_dir+'Data/Processed/electrophysiology'

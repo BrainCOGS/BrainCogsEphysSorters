@@ -1,5 +1,7 @@
 
 import os, shutil, sys 
+import subprocess
+
 
 def move_to_root_folder(root_path, cur_path):
     for filename in os.listdir(cur_path):
@@ -12,3 +14,22 @@ def move_to_root_folder(root_path, cur_path):
     # remove empty folders
     if cur_path != root_path:
         os.rmdir(cur_path)
+
+
+def get_hostname():
+    """
+    Get hostname of system
+    """
+
+    hostname = ''
+
+    p = subprocess.Popen("hostname", stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p.wait()
+
+    stdout, stderr = p.communicate()
+    if p.returncode == 0:
+        hostname = stdout.decode('UTF-8')
+
+    return hostname
+
+    
