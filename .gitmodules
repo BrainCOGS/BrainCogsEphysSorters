@@ -1,3 +1,7 @@
 [submodule "sorters/npy-matlab"]
 	path = sorters/npy-matlab
 	url = https://github.com/kwikteam/npy-matlab.git
+[submodule "Kilosort3"]
+	path = sorters/Kilosort3
+	url = https://github.com/MouseLand/Kilosort.git
+	branch = kilosort3
