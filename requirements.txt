@@ -3,4 +3,3 @@
 pandas
 numpy
 kilosort[gui]
-pytorch --install-option='pytorch-cuda=11.8 -c pytorch -c nvidia'
