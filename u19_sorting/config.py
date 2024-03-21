@@ -46,7 +46,7 @@ matlab_scripts = pathlib.Path(repository_dir, "u19_sorting", "matlab_scripts")
 
 
 sorters_names = {
-    'kilosort':      'Kilosort',
+    'kilosort3':     'Kilosort3',
     'kilosort2':     'Kilosort2',
     'SpikeInterface':'spike_interface'
 }
