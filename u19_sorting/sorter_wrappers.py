@@ -124,7 +124,7 @@ class Kilosort3():
     """ Kilosort caller functions """
 
     #This library directory
-    ks_directory = pathlib.Path(config.sorters_dir, config.sorters_names['kilosort']).as_posix()
+    ks_directory = pathlib.Path(config.sorters_dir, config.sorters_names['kilosort3']).as_posix()
 
     @staticmethod
     def run_Kilosort3(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
