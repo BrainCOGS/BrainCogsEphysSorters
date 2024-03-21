@@ -37,7 +37,7 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
     if sorter == config.sorters_names['kilosort2']:
         Kilosort2.run_Kilosort2(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
     elif sorter == config.sorters_names['kilosort3']:
-        Kilosort3.run_Kilosort(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
+        Kilosort3.run_Kilosort3(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
 
     else:
         print("skipping")
