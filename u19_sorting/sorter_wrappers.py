@@ -36,8 +36,8 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
 
     if sorter == config.sorters_names['kilosort2']:
         Kilosort2.run_Kilosort2(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
-    elif sorter == config.sorters_names['kilosort']:
-        Kilosort.run_Kilosort(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
+    elif sorter == config.sorters_names['kilosort3']:
+        Kilosort3.run_Kilosort(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
 
     else:
         print("skipping")
@@ -120,14 +120,14 @@ class Kilosort2():
         return ks2_command
 
 
-class Kilosort():
+class Kilosort3():
     """ Kilosort caller functions """
 
     #This library directory
     ks_directory = pathlib.Path(config.sorters_dir, config.sorters_names['kilosort']).as_posix()
 
     @staticmethod
-    def run_Kilosort(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
+    def run_Kilosort3(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that calls Kilosort
                 
             Args:
@@ -136,7 +136,7 @@ class Kilosort():
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        ks_command = Kilosort.create_Kilosort_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
+        ks_command = Kilosort3.create_Kilosort3_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
         print('ks_command .....', ks_command)
         p = subprocess.run(ks_command, universal_newlines=True, shell=True, capture_output=True)
 
@@ -149,7 +149,7 @@ class Kilosort():
         
 
     @staticmethod
-    def create_Kilosort_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
+    def create_Kilosort3_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that creates the command to call matlab kilosort2 script
                 
             Args:
@@ -158,7 +158,7 @@ class Kilosort():
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        matlab_command = "addpath(genpath('" + Kilosort.ks_directory + "'));  \
+        matlab_command = "addpath(genpath('" + Kilosort3.ks_directory + "'));  \
         addpath('" + config.matlab_scripts.as_posix() + "'); \
         kilosortbatch('" + process_parameter_filename + "','" \
             + raw_directory.as_posix() + "','"  + processed_directory.as_posix() + "','"\
