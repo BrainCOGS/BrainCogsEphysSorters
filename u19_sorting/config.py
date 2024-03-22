@@ -3,24 +3,24 @@ import os
 import pathlib
 import u19_sorting.utils as utils
 
-'''
-this_hostname = utils.get_hostname()
-princeton_computing_hosts = ['della', 'tiger']
-pni_computing_hosts = ['spock', 'scotty']
-
-# Home dir if in priceton computing hosts
-if any(host in this_hostname for host in princeton_computing_hosts):
-    home_dir = '/scratch/gpfs/BRAINCOGS/'
-#Home dir in pni hosts
+cup_root_dir = '/mnt/cup/braininit/'
+if os.path.isdir(cup_root_dir):
+    cup_mounted = True
 else:
-    home_dir = '/mnt/cup/braininit/shared/repos/AutomaticPipelineProcessing/'
-'''
+    cup_mounted = False
 
 #Home dir is 4 directories up from this file
 home_dir = os.path.abspath(os.path.realpath(__file__)+ "/../../../../")
 
-root_raw_data_dir = pathlib.Path(home_dir, 'Data', 'Raw', 'electrophysiology').as_posix()
-root_processed_data_dir = pathlib.Path(home_dir, 'Data', 'Processed', 'electrophysiology').as_posix()
+# Data directory depends on which system we are for Princeton computing /scratch/gpfs/BRAINCOGS/'
+this_hostname = utils.get_hostname()
+if not cup_mounted:
+    root_raw_data_dir = pathlib.Path(home_dir, 'Data', 'Raw', 'electrophysiology').as_posix()
+    root_processed_data_dir = pathlib.Path(home_dir, 'Data', 'Processed', 'electrophysiology').as_posix()
+#for Princeton servers /mnt/cup/braininit/'
+else:
+    root_raw_data_dir = pathlib.Path(cup_root_dir, 'Data', 'Raw', 'electrophysiology').as_posix()
+    root_processed_data_dir = pathlib.Path(cup_root_dir, 'Data', 'Processed', 'electrophysiology').as_posix()
 
 parameter_dir = pathlib.Path(home_dir, 'ParameterFiles').as_posix()
 process_parameter_file = parameter_dir+"/process_paramset_{}.json"
