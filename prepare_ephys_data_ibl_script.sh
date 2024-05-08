@@ -3,6 +3,7 @@
 
 #module load anaconda3/2022.5
 #read -t 5
+conda init
 conda activate iblenv
 #conda info
 
