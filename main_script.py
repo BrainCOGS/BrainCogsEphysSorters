@@ -43,9 +43,9 @@ print('finish now...')
 #sorter_processed_directory = sw.sorter_main(recording_process_id, new_raw_data_directory, processed_data_directory)
 
 #Delete unnecesary results directory
-#pw.post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory)
+pw.post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory)
 
-#sorter_processed_directory = pathlib.Path(processed_data_directory, 'kilosort_output')
-#ppw.post_process_main(raw_data_directory, processed_data_directory, sorter_processed_directory)
+sorter_processed_directory = pathlib.Path(processed_data_directory, 'kilosort3_output')
+ppw.post_process_main(raw_data_directory, processed_data_directory, sorter_processed_directory)
 
 
