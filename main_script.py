@@ -29,16 +29,23 @@ processed_data_directory = pathlib.Path(config.root_processed_data_dir,processed
 
 print('raw_data_directory', raw_data_directory)
 
+print('recording_process_id', recording_process_id)
+
+print('processed_data_directory', processed_data_directory)
+
+
+print('finish now...')
+
 #Preprocess main
-new_raw_data_directory = pw.preprocess_main(recording_process_id, raw_data_directory, processed_data_directory)
+#new_raw_data_directory = pw.preprocess_main(recording_process_id, raw_data_directory, processed_data_directory)
 
 #Sort main
-sorter_processed_directory = sw.sorter_main(recording_process_id, new_raw_data_directory, processed_data_directory)
+#sorter_processed_directory = sw.sorter_main(recording_process_id, new_raw_data_directory, processed_data_directory)
 
 #Delete unnecesary results directory
-pw.post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory)
+#pw.post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory)
 
 #sorter_processed_directory = pathlib.Path(processed_data_directory, 'kilosort_output')
-ppw.post_process_main(raw_data_directory, processed_data_directory, sorter_processed_directory)
+#ppw.post_process_main(raw_data_directory, processed_data_directory, sorter_processed_directory)
 
 
