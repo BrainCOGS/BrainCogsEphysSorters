@@ -36,8 +36,12 @@ def preprocess_main(recording_process_id, raw_data_directory, processed_data_dir
 def post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory):
 
     # Delete all unnecesary preprocessing tools results (to save storage)
+
+    print('remove post processing partial results', processed_data_directory)
+
     for this_preproc_tool in config.preproc_tools_delete_post:
         this_tool_output_dir = pathlib.Path(processed_data_directory, this_preproc_tool+"_output")
+        print('remove post processing partial results this_tool_output_dir ', this_tool_output_dir)
         if this_tool_output_dir.is_dir():
             shutil.rmtree(this_tool_output_dir)
 
