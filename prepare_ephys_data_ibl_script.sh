@@ -1,10 +1,10 @@
 
 #!/bin/bash 
 
-#module load anaconda3/2022.5
+module load anacondapy/2023.07-cuda
 #read -t 5
 #conda init
-source activate iblenv
+conda activate iblenv
 #conda info
 
 echo ${PWD}
