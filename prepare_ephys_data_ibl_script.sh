@@ -1,5 +1,5 @@
-#!/usr/bin/env conda run -n iblenv
 #!/bin/bash 
+#!/usr/bin/env -S conda run -n iblenv
 
 #module load anacondapy/2023.07-cuda
 #read -t 5
@@ -7,6 +7,8 @@
 #conda activate iblenv
 #conda info
 conda info
+
+which python
 
 echo ${PWD}
 echo ....................
