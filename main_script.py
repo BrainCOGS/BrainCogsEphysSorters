@@ -12,11 +12,14 @@ import u19_sorting.sorter_wrappers as sw
 import subprocess
 
 
-#sbatch --export=recording_process_id=26,raw_data_directory='jjulian/jjulian_jj048/01162022/jjulian_jj048_01162022_g0/jjulian_jj048_01162022_g0_imec0',processed_data_directory='jjulian/jjulian_jj048/01162022/jjulian_jj048_01162022_g0/jjulian_jj048_01162022_g0_imec0/recording_process_id_26',repository_dir='/scratch/gpfs/BRAINCOGS/electorphysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
+#sbatch --export=recording_process_id=26,raw_data_directory='jjulian/jjulian_jj048/01162022/jjulian_jj048_01162022_g0/jjulian_jj048_01162022_g0_imec0',processed_data_directory='jjulian/jjulian_jj048/01162022/jjulian_jj048_01162022_g0/jjulian_jj048_01162022_g0_imec0/recording_process_id_26',repository_dir='/scratch/gpfs/BRAINCOGS/electrophysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
+
+#sbatch --export=recording_process_id=602,raw_data_directory='jk8386/jk8386_jknpx4/20240305_g0/jknpx4_03052024_g0/jknpx4_03052024_g0_imec0',processed_data_directory='jk8386/jk8386_jknpx4/20240305_g0/jknpx4_03052024_g0/jknpx4_03052024_g0_imec0/job_id_602',repository_dir='/scratch/gpfs/BRAINCOGS/electrophysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
+
 # sacct --job 8193599
 #conda activate /home/alvaros/.conda/envs/BrainCogsEphysSorters_env/
 
-#sbatch --export=recording_process_id=29,raw_data_directory='ms81/ms81_M005/20210505/towers_task_g0/towers_task_g0_imec0',processed_data_directory='ms81/ms81_M005/20210505/towers_task_g0/towers_task_g0_imec0/recording_process_id_29',repository_dir='/scratch/gpfs/BRAINCOGS/electorphysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
+#sbatch --export=recording_process_id=29,raw_data_directory='ms81/ms81_M005/20210505/towers_task_g0/towers_task_g0_imec0',processed_data_directory='ms81/ms81_M005/20210505/towers_task_g0/towers_task_g0_imec0/recording_process_id_29',repository_dir='/scratch/gpfs/BRAINCOGS/electrophysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
 
 # Get recording process and data directories
 recording_process_id = os.environ['recording_process_id']
