@@ -189,6 +189,9 @@ def get_submodule_hash(sorter_submodule):
     if len(output) > 0:
         hash = output.split(' ')[1]
     else:
-        raise Exception(sorter_submodule + " is not a supported submodule")
+        print(os.getcwd())
+        print(output)
+        print(sorter_submodule + " not found")
+        hash = '0'
 
     return hash

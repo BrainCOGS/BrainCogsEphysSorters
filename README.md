@@ -8,7 +8,7 @@ Compilation of electrophysiology sorters and preprocessing tools supported in th
 Example of a slurm command to preprocess and process an ephys session (Normally all parameters will be generated from the automation pipeline):
 
 ```
-sbatch --export=recording_process_id=28,raw_data_directory='ms81/ms81_M004/20210507/towersTask_g0/towersTask_g0_imec0',processed_data_directory='ms81/ms81_M004/20210507/towersTask_g0/towersTask_g0_imec0/recording_process_id_28',repository_dir='/scratch/gpfs/BRAINCOGS/electorphysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
+sbatch --export=recording_process_id=28,raw_data_directory='ms81/ms81_M004/20210507/towersTask_g0/towersTask_g0_imec0',processed_data_directory='ms81/ms81_M004/20210507/towersTask_g0/towersTask_g0_imec0/recording_process_id_28',repository_dir='/scratch/gpfs/BRAINCOGS/electrophysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
 ```
 To test code for a new ephys session:
 

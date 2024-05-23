@@ -28,7 +28,7 @@ def preprocess_main(recording_process_id, raw_data_directory, processed_data_dir
         print('this_preparam', this_preparam)
         if config.preproc_tools['catgt'] in this_preparam:
             catgt_output_dir = pathlib.Path(processed_data_directory, config.preproc_tools['catgt']+"_output")
-            pathlib.Path(catgt_output_dir).mkdir(parents=True, exist_ok=True)
+            #pathlib.Path(catgt_output_dir).mkdir(parents=True, exist_ok=True)
             new_raw_data_directory = cat_gt.run_cat_gt(new_raw_data_directory, catgt_output_dir, this_preparam[config.preproc_tools['catgt']])
 
     return new_raw_data_directory
@@ -147,6 +147,10 @@ class cat_gt():
         catgt_dir = str()
         old_catgt_dir = str()
         path_process_dir = pathlib.Path(processed_data_directory)
+
+        print('path_process_dir', path_process_dir)
+        print('cat_gt_output_dir', cat_gt_output_dir)
+
         for x in path_process_dir.iterdir():
             if x.is_dir():
                 dirname = x.name
