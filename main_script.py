@@ -16,6 +16,14 @@ import subprocess
 
 #sbatch --export=recording_process_id=602,raw_data_directory='jk8386/jk8386_jknpx4/20240305_g0/jknpx4_03052024_g0/jknpx4_03052024_g0_imec0',processed_data_directory='jk8386/jk8386_jknpx4/20240305_g0/jknpx4_03052024_g0/jknpx4_03052024_g0_imec0/job_id_602',repository_dir='/scratch/gpfs/BRAINCOGS/electrophysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
 
+#sbatch --export=recording_process_id=618,raw_data_directory='jk8386/jk8386_jknpx4/20240315_g0/jknpx4_03152024_g0/jknpx4_03152024_g0_imec0',processed_data_directory='jk8386/jk8386_jknpx4/20240315_g0/jknpx4_03152024_g0/jknpx4_03152024_g0_imec0/job_id_618',repository_dir='/scratch/gpfs/BRAINCOGS/electrophysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real618.slurm
+#sbatch --export=recording_process_id=625,raw_data_directory='jk8386/jk8386_jknpx5/20240320_g0/jknpx5_03202024_g0/jknpx5_03202024_g0_imec0',processed_data_directory='jk8386/jk8386_jknpx5/20240320_g0/jknpx5_03202024_g0/jknpx5_03202024_g0_imec0/job_id_625',repository_dir='/scratch/gpfs/BRAINCOGS/electrophysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real625.slurm
+
+
+#sbatch --export=recording_process_id=680,raw_data_directory='jyanar/jyanar_ya008/20240528_g0/ya008_20240528_g0/ya008_20240528_g0_imec0/',processed_data_directory='jyanar/jyanar_ya008/20240528_g0/ya008_20240528_g0/ya008_20240528_g0_imec0/job_id_680',repository_dir='/scratch/gpfs/BRAINCOGS/electrophysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real680.slurm
+
+#sbatch --export=recording_process_id=681,raw_data_directory='jyanar/jyanar_ya008/20240528_g0/ya008_20240528_g0/ya008_20240528_g0_imec1/',processed_data_directory='jyanar/jyanar_ya008/20240528_g0/ya008_20240528_g0/ya008_20240528_g0_imec1/job_id_681',repository_dir='/scratch/gpfs/BRAINCOGS/electrophysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real681.slurm
+
 # sacct --job 8193599
 #conda activate /home/alvaros/.conda/envs/BrainCogsEphysSorters_env/
 
@@ -39,9 +47,10 @@ print('processed_data_directory', processed_data_directory)
 
 
 #Preprocess main
-new_raw_data_directory = pw.preprocess_main(recording_process_id, raw_data_directory, processed_data_directory)
+#new_raw_data_directory = pw.preprocess_main(recording_process_id, raw_data_directory, processed_data_directory)
 
 #Sort main
+new_raw_data_directory = pathlib.Path(processed_data_directory, 'catgt_output')
 sorter_processed_directory = sw.sorter_main(recording_process_id, new_raw_data_directory, processed_data_directory)
 
 #Delete unnecesary results directory
