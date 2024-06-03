@@ -198,12 +198,11 @@ class Kilosort4():
             settings = json.load(process_param_file)
 
         # ( path to drive if mounted: /content/drive/MyDrive/ )
-        settings['data_dir'] = processed_directory
+        settings['data_dir'] = raw_directory
 
         print('settings kilosort4 here .......', settings)
 
-        ops, st, clu, tF, Wall, similar_templates, is_ref, est_contam_rate = run_kilosort(settings=settings, 
-                                                                                          probe_name=chanmap_filename)
+        run_kilosort(settings=settings, data_dir=raw_directory, results_dir=processed_directory, probe_name=chanmap_filename)
      
 
 
