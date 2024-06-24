@@ -6,11 +6,12 @@
 #conda init
 #conda activate iblenv
 #conda info
-conda info
+conda run -n iblenv python $1 $2 $3 $4
+#conda info
 
-which python
+#which python
 
-echo ${PWD}
-echo ....................
-echo $1
-python $1 $2 $3 $4
+#echo ${PWD}
+#echo ....................
+#echo $1
+#python $1 $2 $3 $4
