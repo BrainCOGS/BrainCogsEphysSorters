@@ -38,6 +38,9 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
         Kilosort2.run_Kilosort2(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
     elif sorter == config.sorters_names['kilosort3']:
         Kilosort3.run_Kilosort3(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
+    elif sorter == config.sorters_names['kilosort4']:
+        print('running Kilosort 4 here xxxxxxxx')
+        Kilosort4.run_Kilosort4(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
 
     else:
         print("skipping")
@@ -138,6 +141,7 @@ class Kilosort3():
 
         ks_command = Kilosort3.create_Kilosort3_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
         print('ks_command .....', ks_command)
+        print('kilosort3 here .............................')
         p = subprocess.run(ks_command, universal_newlines=True, shell=True, capture_output=True)
 
         print('stderr here', p.stderr)
@@ -171,6 +175,39 @@ class Kilosort3():
         ks_command += '"'
         
         return ks_command
+
+class Kilosort4():
+    """ Kilosort caller functions """
+
+    #This library directory
+    #ks_directory = pathlib.Path(config.sorters_dir, config.sorters_names['kilosort4']).as_posix()
+
+    @staticmethod
+    def run_Kilosort4(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
+        """ Function that calls Kilosort
+                
+            Args:
+                raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+                processed_directory         (str):   Directory where processed data will be stored
+                process_parameter_filename  (dict):  Filename of json with sorting parameters
+        """
+
+        from kilosort import run_kilosort
+
+        with open(process_parameter_filename, 'r') as process_param_file:
+            settings = json.load(process_param_file)
+
+        # ( path to drive if mounted: /content/drive/MyDrive/ )
+        settings['data_dir'] = raw_directory
+
+        print('settings kilosort4 here .......', settings)
+
+        run_kilosort(settings=settings, data_dir=raw_directory, results_dir=processed_directory, probe_name=chanmap_filename)
+     
+
+
+
+        
 
 def get_submodule_hash(sorter_submodule):
     """ Get specific submodule current hash commit
