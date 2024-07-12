@@ -3,7 +3,8 @@
 
 #module load anacondapy/2023.07-cuda
 #read -t 5
-#conda init
+echo $1
+conda init
 conda activate iblenv
 #conda info
 #conda run -n iblenv python $1 $2 $3 $4
