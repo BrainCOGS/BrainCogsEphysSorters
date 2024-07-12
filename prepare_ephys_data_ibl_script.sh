@@ -1,4 +1,4 @@
-!/bin/bash 
+#!/bin/bash 
 #!/usr/bin/env -S conda run -n iblenv
 
 echo $(whereis conda)
