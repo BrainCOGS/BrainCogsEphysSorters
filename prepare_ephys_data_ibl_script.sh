@@ -1,14 +1,10 @@
 #!/bin/bash 
 #!/usr/bin/env -S conda run -n iblenv
 
-echo $(whereis conda)
 
 module load anacondapy/2023.07-cuda
 
-echo $(whereis conda)
-
 #read -t 5
-echo $1
 conda init bash
 #conda activate iblenv
 #conda info
