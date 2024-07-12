@@ -10,7 +10,7 @@ echo $(whereis conda)
 #read -t 5
 echo $1
 conda init bash
-conda activate iblenv
+#conda activate iblenv
 #conda info
 #conda run -n iblenv python $1 $2 $3 $4
 #conda info
@@ -20,4 +20,4 @@ conda activate iblenv
 #echo ${PWD}
 #echo ....................
 echo $1
-python $1 $2 $3 $4
+#python $1 $2 $3 $4
