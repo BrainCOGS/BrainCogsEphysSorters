@@ -1,7 +1,7 @@
 #!/bin/bash 
 #!/usr/bin/env -S conda run -n iblenv
 
-#module load anacondapy/2023.07-cuda
+module load anacondapy/2023.07-cuda
 #read -t 5
 echo $1
 conda init
