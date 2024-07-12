@@ -9,7 +9,7 @@ echo $(whereis conda)
 
 #read -t 5
 echo $1
-conda init
+conda init bash
 conda activate iblenv
 #conda info
 #conda run -n iblenv python $1 $2 $3 $4
