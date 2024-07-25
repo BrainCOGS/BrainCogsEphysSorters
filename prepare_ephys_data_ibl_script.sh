@@ -5,10 +5,10 @@
 module load anacondapy/2023.07-cuda
 
 #read -t 5
-conda init bash
-conda activate iblenv
+#conda init bash
+#conda activate iblenv
 #conda info
-#conda run -n iblenv python $1 $2 $3 $4
+/usr/people/u19prod/.conda/envs/iblenv/bin/python $1 $2 $3 $4
 #conda info
 
 #which python
