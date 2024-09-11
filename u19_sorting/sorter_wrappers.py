@@ -190,6 +190,11 @@ class Kilosort4():
         """
 
         import kilosort
+        import importlib.metadata
+
+        # Get the version of the package kilosort
+        package_name = "kilosort"
+        version = importlib.metadata.version(package_name)
 
         with open(process_parameter_filename, 'r') as process_param_file:
             settings = json.load(process_param_file)
@@ -197,7 +202,7 @@ class Kilosort4():
         # ( path to drive if mounted: /content/drive/MyDrive/ )
         settings['data_dir'] = raw_directory
 
-        print(f"Kilosort4 version {kilosort.__version__}")
+        print(f"Kilosort4 version {version}")
         print(f"Kilosort4 location {kilosort.__path__}")
         print('settings kilosort4 here .......', settings)
 
