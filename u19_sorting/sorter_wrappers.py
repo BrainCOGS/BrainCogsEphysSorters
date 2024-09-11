@@ -10,7 +10,7 @@ import u19_sorting.config as config
 def sorter_main(recording_process_id, raw_directory, processed_directory):
     """ Main function to call appropiate sorter
         Args:
-            raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+            raw_directory               (str):   Directory where raw (or preprocessed) data is located
             processed_directory         (str):   Directory where processed data will be stored
             preprocess_parameters       (dict):  Dictionary with preprocessing parameters and sorter algorithm selection
             process_parameters          (dict):  Dictionary with specific sorting parameters
@@ -30,9 +30,6 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
 
     sorter_processed_directory = pathlib.Path(processed_directory, process_parameters['clustering_method']+'_output')
     pathlib.Path(sorter_processed_directory).mkdir(parents=True, exist_ok=True)
-
-    hash = get_submodule_hash(sorter)
-    print('hash submodule', hash)
 
     if sorter == config.sorters_names['kilosort2']:
         Kilosort2.run_Kilosort2(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
@@ -57,9 +54,9 @@ class Kilosort2():
     @staticmethod
     def run_Kilosort2(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that calls Kilosort2
-                
+
             Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+                raw_directory               (str):   Directory where raw (or preprocessed) data is located
                 processed_directory         (str):   Directory where processed data will be stored
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
@@ -79,9 +76,9 @@ class Kilosort2():
     @staticmethod
     def create_Kilosort2_run_script(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that creates the a .m script that add paths and run kilosort2 script
-                
+
             Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+                raw_directory               (str):   Directory where raw (or preprocessed) data is located
                 processed_directory         (str):   Directory where processed data will be stored
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
@@ -98,9 +95,9 @@ class Kilosort2():
     @staticmethod
     def create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that creates the command to call matlab kilosort2 script
-                
+
             Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+                raw_directory               (str):   Directory where raw (or preprocessed) data is located
                 processed_directory         (str):   Directory where processed data will be stored
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
@@ -117,7 +114,7 @@ class Kilosort2():
         ks2_command =  ['matlab', '-nodisplay', '-nosplash', '-r']
         ks2_command = ' '.join(ks2_command)
         ks2_command += ' "'
-        ks2_command += matlab_command 
+        ks2_command += matlab_command
         ks2_command += '"'
 
         return ks2_command
@@ -132,9 +129,9 @@ class Kilosort3():
     @staticmethod
     def run_Kilosort3(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that calls Kilosort
-                
+
             Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+                raw_directory               (str):   Directory where raw (or preprocessed) data is located
                 processed_directory         (str):   Directory where processed data will be stored
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
@@ -150,14 +147,14 @@ class Kilosort3():
         if  p.stderr:
             raise Exception(p.stderr)
 
-        
+
 
     @staticmethod
     def create_Kilosort3_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that creates the command to call matlab kilosort2 script
-                
+
             Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+                raw_directory               (str):   Directory where raw (or preprocessed) data is located
                 processed_directory         (str):   Directory where processed data will be stored
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
@@ -171,9 +168,9 @@ class Kilosort3():
         ks_command =  ['matlab', '-nodisplay', '-nosplash', '-r']
         ks_command = ' '.join(ks_command)
         ks_command += ' "'
-        ks_command += matlab_command 
+        ks_command += matlab_command
         ks_command += '"'
-        
+
         return ks_command
 
 class Kilosort4():
@@ -185,9 +182,9 @@ class Kilosort4():
     @staticmethod
     def run_Kilosort4(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
         """ Function that calls Kilosort
-                
+
             Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located 
+                raw_directory               (str):   Directory where raw (or preprocessed) data is located
                 processed_directory         (str):   Directory where processed data will be stored
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
@@ -203,32 +200,7 @@ class Kilosort4():
         print('settings kilosort4 here .......', settings)
 
         run_kilosort(settings=settings, data_dir=raw_directory, results_dir=processed_directory, probe_name=chanmap_filename)
-     
 
 
 
-        
 
-def get_submodule_hash(sorter_submodule):
-    """ Get specific submodule current hash commit
-        Args:
-            sorter_submodule            (str):   Submodule name to search hash commit
-    """
-
-    sorter_submodule_dir = pathlib.Path(config.sorters_dir, sorter_submodule).as_posix()
-
-    submodule_hash_command = ['git', 'submodule', 'status', sorter_submodule_dir]
-    p = subprocess.Popen(submodule_hash_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    p.wait()
-    stdout, stderr = p.communicate()
-    output = stdout.decode('UTF-8')
-    
-    if len(output) > 0:
-        hash = output.split(' ')[1]
-    else:
-        print(os.getcwd())
-        print(output)
-        print(sorter_submodule + " not found")
-        hash = '0'
-
-    return hash
