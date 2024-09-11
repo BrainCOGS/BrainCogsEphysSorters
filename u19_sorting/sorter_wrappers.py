@@ -189,7 +189,7 @@ class Kilosort4():
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        from kilosort import run_kilosort
+        import kilosort
 
         with open(process_parameter_filename, 'r') as process_param_file:
             settings = json.load(process_param_file)
@@ -197,9 +197,11 @@ class Kilosort4():
         # ( path to drive if mounted: /content/drive/MyDrive/ )
         settings['data_dir'] = raw_directory
 
+        print(f"Kilosort4 version {kilosort.__version__}")
+        print(f"Kilosort4 location {kilosort.__path__}")
         print('settings kilosort4 here .......', settings)
 
-        run_kilosort(settings=settings, data_dir=raw_directory, results_dir=processed_directory, probe_name=chanmap_filename)
+        kilosort.run_kilosort(settings=settings, data_dir=raw_directory, results_dir=processed_directory, probe_name=chanmap_filename)
 
 
 
