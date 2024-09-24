@@ -55,4 +55,6 @@ print('before postprocessing 2 ...')
 #sorter_processed_directory = pathlib.Path(processed_data_directory, 'kilosort4_output')
 ppw.post_process_main(raw_data_directory, processed_data_directory, sorter_processed_directory)
 
+print('before postprocessing 3 ...')
+
 

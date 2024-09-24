@@ -30,7 +30,7 @@ class ibl_atlas_post_processing():
         command = "bash " + config.ibl_atlas_shell_script.as_posix() + ' ' +\
             config.ibl_atlas_script.as_posix() + ' ' + raw_data_directory.as_posix() +\
             ' ' + sorter_processed_directory.as_posix() + ' ' + ibl_output_dir.as_posix()
-        
+
         print('command run ibl atlas', command)
 
         p = subprocess.run(command, shell=True, capture_output=True)
@@ -45,8 +45,9 @@ class ibl_atlas_post_processing():
 
         if p.stderr:
 
-            print('type(p.stderr)')
+            print(f'{type(p.stderr) = }')
             stderr = p.stderr.decode('UTF-8')
+            print(stderr)
             #raise Exception(stderr)
 
 
