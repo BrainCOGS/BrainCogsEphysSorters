@@ -1,5 +1,4 @@
 
-from lib2to3.pgen2.literals import evalString
 import re
 import os
 import pathlib
@@ -63,13 +62,13 @@ class cat_gt():
             return catgt_output_dir
         #if cat_gt_params['lazy'] == True and already_processed:
         #    return cat_gt_output_dir
-            
+
         cat_gt_params['dir']  = raw_data_directory
         cat_gt_params['dir']  = cat_gt_params['dir'].parents[1]
         cat_gt_params['dest'] = catgt_output_dir.parents[0]
 
         print('cat_gt_params', cat_gt_params)
-        
+
         #Get cat_gt params from probe dir name
         probe_path = pathlib.PurePath(raw_data_directory)
         probe_path = probe_path.name
@@ -112,7 +111,7 @@ class cat_gt():
                     cat_gt_command.append("-"+str(key)+"="+",".join(str_value))
                 else:
                     cat_gt_command.append("-"+str(key)+"="+str(value))
-                
+
         return cat_gt_command
 
     @staticmethod
@@ -168,7 +167,7 @@ class cat_gt():
 
         if not catgt_dir:
             raise ValueError('catgt directory not found')
-            
+
         #Delete child directories and move catgt results straight into catgt directory
         utils.move_to_root_folder(catgt_dir, catgt_dir)
 
