@@ -48,7 +48,7 @@ sorter_processed_directory = sw.sorter_main(recording_process_id, new_raw_data_d
 
 print('before postprocessing 1 ...')
 
-#pw.post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory)
+pw.post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory)
 
 print('before postprocessing 2 ...')
 
