@@ -6,7 +6,7 @@ import u19_sorting.config as config
 
 
 def post_process_main(raw_data_directory, processed_data_directory, sorter_processed_directory):
-   
+
     # For the moment we just call ibl_data transformation to run atlas
     ibl_atlas_post_processing.run_ibl_atlas_post_processing(raw_data_directory, processed_data_directory, sorter_processed_directory)
 
@@ -35,19 +35,15 @@ class ibl_atlas_post_processing():
 
         p = subprocess.run(command, shell=True, capture_output=True)
 
-        print('p.stderr', p.stderr)
-        print('p.stdout', p.stdout)
         stderr = p.stderr.decode('UTF-8')
         stdout = p.stderr.decode('UTF-8')
 
-        print(stderr)
-        print(stdout)
+        print(f"{stdout = }")
 
-        if p.stderr:
+        if p.returncode:
 
             print(f'{type(p.stderr) = }')
-            stderr = p.stderr.decode('UTF-8')
-            print(stderr)
+            print(f"{stderr = }")
             #raise Exception(stderr)
 
 
