@@ -68,7 +68,7 @@ class Kilosort2():
         print('stderr here', p.stderr)
         print('stdout', p.stdout)
 
-        if  p.returncode:
+        if p.returncode:
             raise Exception(p.stderr)
 
 
@@ -144,7 +144,7 @@ class Kilosort3():
         print('stderr here', p.stderr)
         print('stdout', p.stdout)
 
-        if  p.returncode:
+        if p.returncode:
             raise Exception(p.stderr)
 
 
