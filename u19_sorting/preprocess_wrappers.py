@@ -84,7 +84,7 @@ class cat_gt():
         p.wait()
         stdout, stderr = p.communicate()
 
-        if stderr:
+        if p.returncode:
             error = stderr.decode('UTF-8')
             raise Exception(error)
 

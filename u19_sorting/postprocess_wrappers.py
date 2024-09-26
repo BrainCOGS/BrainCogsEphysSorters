@@ -44,7 +44,7 @@ class ibl_atlas_post_processing():
 
             print(f'{type(p.stderr) = }')
             print(f"{stderr = }")
-            #raise Exception(stderr)
+            raise Exception(stderr)
 
 
 
