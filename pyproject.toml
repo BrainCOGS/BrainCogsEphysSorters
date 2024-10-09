@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "u19-sorting"
+version = "0.1.1"
+description = "BRAINCoGS scripts to process electrophysiology data"
+readme = "README.md"
+license = ""
+authors = [
+    { name = "BRAINCoGS"},
+    { name = "Alvaro Luna", email = "alvaros@princeton.edu" },
+    { name = "Christian Tabedzki", email = "ct5868@princeton.edu" },
+]
+dependencies = [
+    "ONE-api",
+    "ibllib",
+    "kilosort[gui]",
+    "numpy",
+    "pandas",
+]
+requires-python = ">= 3.10"
+
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/u19_sorting",
+]
