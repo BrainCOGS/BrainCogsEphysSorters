@@ -32,8 +32,10 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
     sorter_processed_directory = pathlib.Path(processed_directory, process_parameters['clustering_method']+'_output')
     pathlib.Path(sorter_processed_directory).mkdir(parents=True, exist_ok=True)
 
-    del process_parameters['clustering_method']
+    l = process_parameters.pop("clustering_method")
     params_text = json.dumps(process_parameters)
+    print('new params')
+    print(params_text)
     write_file(process_parameters_filename, params_text)
 
     if sorter == config.sorters_names['kilosort2']:
