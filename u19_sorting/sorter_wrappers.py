@@ -5,7 +5,7 @@ import os
 import subprocess
 import json
 import u19_sorting.config as config
-from utils import write_file
+from u19_sorting.utils import write_file
 
 
 def sorter_main(recording_process_id, raw_directory, processed_directory):
