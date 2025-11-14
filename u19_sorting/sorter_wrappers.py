@@ -5,6 +5,7 @@ import os
 import subprocess
 import json
 import u19_sorting.config as config
+from utils import write_file
 
 
 def sorter_main(recording_process_id, raw_directory, processed_directory):
@@ -30,6 +31,10 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
 
     sorter_processed_directory = pathlib.Path(processed_directory, process_parameters['clustering_method']+'_output')
     pathlib.Path(sorter_processed_directory).mkdir(parents=True, exist_ok=True)
+
+    del process_parameters['clustering_method']
+    params_text = json.dumps(process_parameters)
+    write_file(process_parameters_filename, params_text)
 
     if sorter == config.sorters_names['kilosort2']:
         Kilosort2.run_Kilosort2(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
