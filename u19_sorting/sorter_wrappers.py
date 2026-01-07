@@ -213,7 +213,7 @@ class Kilosort4():
         print(f"Kilosort4 location {kilosort.__path__}")
         print('settings kilosort4 here .......', settings)
 
-        kilosort.run_kilosort(settings=settings, data_dir=raw_directory, results_dir=processed_directory, probe_name=chanmap_filename)
+        kilosort.run_kilosort(settings=settings, data_dir=raw_directory, results_dir=processed_directory, probe_name=chanmap_filename, save_preprocessed_copy=True)
 
 
 
