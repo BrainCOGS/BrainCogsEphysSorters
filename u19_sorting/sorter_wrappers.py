@@ -49,6 +49,9 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
     else:
         print("skipping")
 
+    if 'kilosort' in sorter:
+        params_file_for_different_os(sorter_processed_directory)
+
     return sorter_processed_directory
 
 
@@ -217,4 +220,28 @@ class Kilosort4():
 
 
 
+def params_file_for_different_os(kilosort_output_dir):
 
+    linux_path = '/mnt/cup/braininit'
+    windows_path = '//cup.pni.princeton.edu/braininit'
+    mac_path = '/Volumes/braininit'
+
+    if kilosort_output_dir.is_dir():
+        params_file = pathlib.Path(kilosort_output_dir,'params.py')
+        if params_file.is_file():
+            
+            with open(params_file.as_posix(), "r") as file:
+                params_text = file.read()
+            
+            try:
+                windows_params = params_text.replace(linux_path,windows_path)
+                windows_param_file = pathlib.Path(kilosort_output_dir,'win_params.py')
+                with open(windows_param_file, "w") as file:
+                    file.write(windows_params)
+
+                mac_params = params_text.replace(linux_path,mac_path)
+                mac_param_file = pathlib.Path(kilosort_output_dir,'mac_params.py')
+                with open(mac_param_file, "w") as file:
+                    file.write(mac_params)
+            except Exception as e:
+                print(e)
