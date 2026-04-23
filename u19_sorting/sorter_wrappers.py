@@ -49,7 +49,9 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
     else:
         print("skipping")
 
-    if 'kilosort' in sorter:
+    print(sorter, ' this is the sorter')
+    if 'kilosort' in sorter.lower():
+        print('params file different os function here', sorter_processed_directory)
         params_file_for_different_os(sorter_processed_directory)
 
     return sorter_processed_directory
