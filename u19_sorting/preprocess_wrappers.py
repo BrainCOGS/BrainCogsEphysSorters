@@ -229,8 +229,8 @@ class dredge():
         ``sorter_wrappers``) to avoid correcting motion twice.
     """
 
-    # Default SpikeInterface motion-correction preset for AP-band Neuropixels data.
-    default_preset = "dredge_ap"
+    # SpikeInterface's "Official Dredge preset"; it sets estimate_motion method="dredge_ap".
+    default_preset = "dredge"
 
     @staticmethod
     def run_dredge(raw_data_directory, dredge_output_dir, dredge_params):
