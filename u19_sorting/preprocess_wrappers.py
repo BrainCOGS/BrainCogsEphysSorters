@@ -217,99 +217,122 @@ class cat_gt():
 
 
 class dredge():
-    """ DREDge motion correction (via SpikeInterface) as a preprocessing step.
+    """ DREDge motion / drift correction via SpikeInterface.
 
-        Alternative to CatGT: reads the SpikeGLX run for a single probe, applies DREDge
-        motion correction, and writes a SpikeGLX-style ``*.ap.bin`` + ``*.ap.meta`` pair into
-        ``dredge_output``. The returned directory is a drop-in replacement for the CatGT output
-        directory, so the existing Kilosort callers read it unchanged.
+        Runs after CatGT and before Kilosort. Reads the SpikeGLX ap.bin/ap.meta pair
+        produced by CatGT, estimates and applies motion correction with the SpikeInterface
+        `dredge` preset, and writes a corrected SpikeGLX-style ap.bin (+ copied ap.meta)
+        into `dredge_output`, so the sorter stage consumes it exactly like a CatGT output.
 
-        DREDge replaces Kilosort's internal drift correction, so when this step runs the sorter
-        stage disables the in-sorter motion correction (see ``preprocess_has_tool`` /
-        ``sorter_wrappers``) to avoid correcting motion twice.
+        KS4's own drift corrector must be disabled downstream (nblocks=0) so correction is
+        applied once, here.
     """
-
-    # SpikeInterface's "Official Dredge preset"; it sets estimate_motion method="dredge_ap".
-    default_preset = "dredge"
 
     @staticmethod
     def run_dredge(raw_data_directory, dredge_output_dir, dredge_params):
+        """ Estimate + apply motion correction and write a corrected ap.bin.
 
-        # Lazy mode: if a corrected binary already exists, reuse it (mirrors cat_gt).
-        already_processed = cat_gt.cat_gt_check_output(dredge_output_dir)
-        if already_processed:
+            Args:
+                raw_data_directory  (Path): dir with the (CatGT) ap.bin/ap.meta to correct
+                dredge_output_dir   (Path): dir where the corrected ap.bin/ap.meta are written
+                dredge_params       (dict): {preset, device, motion_kwargs, job_kwargs}
+        """
+
+        dredge_output_dir = pathlib.Path(dredge_output_dir)
+
+        # Lazy-skip on restart / requeue if we already produced a corrected recording.
+        if dredge.dredge_check_output(dredge_output_dir):
+            print('dredge output already present, skipping', dredge_output_dir)
             return dredge_output_dir
 
-        # SpikeInterface (and torch) are heavy imports; only pay the cost when DREDge is used.
+        # Import SpikeInterface / torch lazily so catgt-only and KS2/KS3 runs never pay for it.
+        import shutil
         import spikeinterface.full as si
+        from spikeinterface.preprocessing.motion import correct_motion
+        import torch
 
         raw_data_directory = pathlib.Path(raw_data_directory)
+        dredge_output_dir.mkdir(parents=True, exist_ok=True)
 
-        # The probe directory is the SpikeGLX run folder's '*_imecN' child; read_spikeglx wants
-        # the run folder + the AP stream for that probe.
-        probe_dirname = raw_data_directory.name
-        run_folder = raw_data_directory.parent
-        probe_num = dredge.probe_number_from_dirname(probe_dirname)
-        stream_id = "imec{}.ap".format(probe_num)
+        # Locate the SpikeGLX ap.meta produced by CatGT (flattened into the dir root).
+        meta_files = sorted(raw_data_directory.glob('*ap.meta'))
+        if not meta_files:
+            raise ValueError('No *ap.meta found in ' + raw_data_directory.as_posix())
+        src_meta = meta_files[0]
+        stem = src_meta.name[:-len('.ap.meta')]
 
-        print('dredge run_folder', run_folder, 'stream_id', stream_id)
+        # Probe index for the SpikeGLX stream id (imec<N>.ap), reusing catgt's regex idiom.
+        probe_match = re.search(r"imec([0-9]+)", src_meta.name)
+        stream_id = ("imec" + probe_match.group(1) + ".ap") if probe_match else "imec0.ap"
 
-        recording = si.read_spikeglx(folder_path=run_folder.as_posix(), stream_id=stream_id)
+        rec = si.read_spikeglx(folder_path=raw_data_directory.as_posix(), stream_id=stream_id)
 
-        preset = dredge_params.get('preset', dredge.default_preset)
+        # GPU for motion estimation unless overridden. DREDge does not auto-detect a GPU
+        # (unlike KS4), so we pass the device explicitly.
+        device = dredge_params.get('device')
+        if device is None or device == 'cuda':
+            if torch.cuda.is_available():
+                device = 'cuda'
+                print('dredge using CUDA device:', torch.cuda.get_device_name())
+            else:
+                device = 'cpu'
+                print('dredge: CUDA not available, falling back to CPU')
+
+        job_kwargs = dredge_params.get('job_kwargs', {})
         motion_kwargs = dredge_params.get('motion_kwargs', {})
-        print('dredge preset', preset, 'motion_kwargs', motion_kwargs)
 
-        recording_corrected = si.correct_motion(recording, preset=preset, **motion_kwargs)
+        # output_motion_info=True (and output_motion=False) => returns (recording, motion_info).
+        motion_result = correct_motion(
+            rec,
+            preset=dredge_params.get('preset', 'dredge'),
+            folder=(dredge_output_dir / 'motion').as_posix(),
+            output_motion_info=True,
+            overwrite=True,
+            estimate_motion_kwargs={'device': device},
+            **motion_kwargs,
+            **job_kwargs,
+        )
+        rec_corr, motion_info = motion_result  # type: ignore[misc]  # union return; runtime is a 2-tuple
 
-        dredge.write_spikeglx_style_output(
-            recording_corrected, run_folder, stream_id, dredge_output_dir, dredge_params)
+        # Materialize a SpikeGLX-style ap.bin. write_binary_recording (not save()) writes a
+        # single flat binary; KS4's find_binary globs *.bin and prefers the 'ap.bin' tag.
+        corrected_bin = dredge_output_dir / (stem + '.ap.bin')
+        si.write_binary_recording(
+            rec_corr,
+            file_paths=[corrected_bin.as_posix()],
+            dtype='int16',
+            **job_kwargs,
+        )
+
+        # Copy the ap.meta alongside (provenance + lets read_spikeglx re-open on requeue).
+        # Motion interpolation preserves sample count, so the meta stays valid.
+        shutil.copy2(src_meta.as_posix(), (dredge_output_dir / (stem + '.ap.meta')).as_posix())
+
+        # Release GPU memory so the downstream KS4 stage gets the full card.
+        del rec_corr, rec, motion_info
+        if device == 'cuda':
+            torch.cuda.empty_cache()
 
         return dredge_output_dir
 
     @staticmethod
-    def probe_number_from_dirname(probe_dirname):
-        """ Extract the probe number N from a '*_imecN' SpikeGLX probe directory name. """
+    def dredge_check_output(dredge_output_dir):
 
-        probe_match = re.search("_imec([0-9])$", probe_dirname)
-        if not probe_match:
-            raise ValueError(probe_dirname + ' is not a valid probe directory')
-        return probe_match.group(1)
+        file_patterns = ['/*ap.bin', '/*ap.meta']
 
-    @staticmethod
-    def write_spikeglx_style_output(recording_corrected, run_folder, stream_id, dredge_output_dir, dredge_params):
-        """ Write the motion-corrected recording as a SpikeGLX-style '*.ap.bin' + '*.ap.meta'.
+        child_dirs = [x[0] for x in os.walk(dredge_output_dir)]
+        patterns_found = 0
+        for dir in child_dirs:
+            for pat in file_patterns:
+                found_file = glob.glob(dir+pat)
+                if len(found_file) > 0:
+                    patterns_found = 1
+                    break
 
-            SpikeInterface's write produces a plain binary, so we name it with the SpikeGLX
-            '*.ap.bin' convention and copy the original '*.ap.meta' next to it. Motion correction
-            does not change channel count, sample count or sampling rate, so the source meta stays
-            valid for the corrected binary.
-        """
+            if patterns_found:
+                break
 
-        import spikeinterface.full as si
-
-        pathlib.Path(dredge_output_dir).mkdir(parents=True, exist_ok=True)
-
-        # Locate the source SpikeGLX *.ap.bin / *.ap.meta for this probe to reuse the base name.
-        probe_num = stream_id.replace('imec', '').replace('.ap', '')
-        meta_matches = glob.glob(pathlib.Path(run_folder, "*_imec{}".format(probe_num), "*.ap.meta").as_posix())
-        meta_matches += glob.glob(pathlib.Path(run_folder, "*.ap.meta").as_posix())
-        if not meta_matches:
-            raise ValueError('No source *.ap.meta found for ' + stream_id + ' under ' + run_folder.as_posix())
-        source_meta = pathlib.Path(meta_matches[0])
-        base_name = source_meta.name[:-len('.meta')]  # e.g. run_g0_t0.imec0.ap.bin
-
-        out_bin = pathlib.Path(dredge_output_dir, base_name)
-        out_meta = pathlib.Path(dredge_output_dir, source_meta.name)
-
-        n_jobs = dredge_params.get('n_jobs', 1)
-        dtype = recording_corrected.get_dtype()
-        si.write_binary_recording(
-            recording_corrected,
-            file_paths=[out_bin.as_posix()],
-            dtype=dtype,
-            n_jobs=n_jobs,
-        )
-
-        shutil.copy2(source_meta.as_posix(), out_meta.as_posix())
-        print('dredge wrote', out_bin, 'and', out_meta)
+        if patterns_found:
+            return 1
+        else:
+            return 0
