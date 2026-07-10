@@ -7,23 +7,32 @@ name = "u19-sorting"
 version = "0.1.1"
 description = "BRAINCoGS scripts to process electrophysiology data"
 readme = "README.md"
-license = ""
+license-files = [
+    "LICENSE*"
+    ]
 authors = [
     { name = "BRAINCoGS"},
     { name = "Alvaro Luna", email = "alvaros@princeton.edu" },
     { name = "Christian Tabedzki", email = "ct5868@princeton.edu" },
 ]
 dependencies = [
-    "ONE-api",
-    "ibllib",
+    "ONE-api>=3.4.1",
+    "ibllib>=4.0.1",
     "kilosort[gui]",
     "numpy",
     "pandas",
+    "spikeinterface>=0.104.8",
 ]
-requires-python = ">= 3.10"
+requires-python = ">= 3.14"
 
 
 [tool.hatch.build.targets.sdist]
 include = [
     "/u19_sorting",
 ]
+
+# Point Pyright / basedpyright (and Pylance) at the uv-managed virtualenv so imports of
+# spikeinterface, torch, kilosort, etc. resolve instead of being flagged as missing.
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
