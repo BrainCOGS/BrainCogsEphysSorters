@@ -16,17 +16,23 @@ authors = [
     { name = "Christian Tabedzki", email = "ct5868@princeton.edu" },
 ]
 dependencies = [
-    "ONE-api",
-    "ibllib",
+    "ONE-api>=3.4.1",
+    "ibllib>=4.0.1",
     "kilosort[gui]",
     "numpy",
     "pandas",
-    "spikeinterface[full]>=0.101",
+    "spikeinterface>=0.104.8",
 ]
-requires-python = ">= 3.11"
+requires-python = ">= 3.14"
 
 
 [tool.hatch.build.targets.sdist]
 include = [
     "/u19_sorting",
 ]
+
+# Point Pyright / basedpyright (and Pylance) at the uv-managed virtualenv so imports of
+# spikeinterface, torch, kilosort, etc. resolve instead of being flagged as missing.
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
