@@ -276,10 +276,9 @@ class dredge():
         # "<stream>-SYNC" stream, so `rec` holds only the 384 probe channels. The ap.meta we
         # copy below still says nSavedChans=385 (and KS4's n_chan_bin matches it), so the sync
         # channel must be appended back, uncorrected, when the output is written.
-        stream_ids = si.get_neo_streams('spikeglx', raw_data_directory.as_posix())[1]
-        sync_rec = None
-        if stream_id + '-SYNC' in stream_ids:
-            sync_rec = si.read_spikeglx(folder_path=raw_data_directory.as_posix(), stream_id=stream_id + '-SYNC')
+        sync_rec = dredge.read_sync_channel(raw_data_directory, stream_id, rec.get_num_channels())
+        if sync_rec is None:
+            print('dredge: no sync channel found for', stream_id, '- writing probe channels only')
 
         # SpikeGLX data is int16; InterpolateMotionRecording refuses non-float traces, so
         # cast lazily to float32 (scaled back to int16 with rounding when written out below).
@@ -331,12 +330,45 @@ class dredge():
         # Motion interpolation preserves sample count, so the meta stays valid.
         shutil.copy2(src_meta.as_posix(), (dredge_output_dir / (stem + '.ap.meta')).as_posix())
 
+        # Fail here, with a useful message, rather than later in Kilosort's file reader if the
+        # channel count we wrote does not match what the meta (and KS4's n_chan_bin) describe.
+        expected = re.search(r'^fileSizeBytes=(\d+)', src_meta.read_text(), flags=re.M)
+        if expected is not None and corrected_bin.stat().st_size != int(expected.group(1)):
+            raise ValueError('dredge wrote ' + str(corrected_bin.stat().st_size) + ' bytes (' +
+                             str(rec_out.get_num_channels()) + ' channels) but ' + src_meta.name +
+                             ' expects ' + expected.group(1) + ' bytes; channel count mismatch')
+
         # Release GPU memory so the downstream KS4 stage gets the full card.
         del rec_corr, rec, motion_info
         if device == 'cuda':
             torch.cuda.empty_cache()
 
         return dredge_output_dir
+
+    @staticmethod
+    def read_sync_channel(raw_data_directory, stream_id, num_probe_channels):
+        """ Return a 1-channel recording of the SpikeGLX sync channel (SY0), or None.
+
+            Newer neo exposes it as its own "<stream>-SYNC" stream; older spikeinterface/neo
+            only include it via read_spikeglx(load_sync_channel=True), as the last channel of
+            the probe stream (with no probe attached). Handle both so the output keeps the
+            nSavedChans column count regardless of the installed version.
+        """
+
+        import spikeinterface.full as si
+        folder = pathlib.Path(raw_data_directory).as_posix()
+
+        stream_ids = si.get_neo_streams('spikeglx', folder)[1]
+        if stream_id + '-SYNC' in stream_ids:
+            return si.read_spikeglx(folder_path=folder, stream_id=stream_id + '-SYNC')
+
+        try:
+            rec_with_sync = si.read_spikeglx(folder_path=folder, stream_id=stream_id, load_sync_channel=True)
+        except TypeError:
+            return None  # neither API offers a sync channel
+        if rec_with_sync.get_num_channels() != num_probe_channels + 1:
+            return None
+        return rec_with_sync.channel_slice([rec_with_sync.channel_ids[-1]])
 
     @staticmethod
     def dredge_check_output(dredge_output_dir):
