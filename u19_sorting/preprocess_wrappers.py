@@ -272,6 +272,15 @@ class dredge():
 
         rec = si.read_spikeglx(folder_path=raw_data_directory.as_posix(), stream_id=stream_id)
 
+        # neo exposes the SpikeGLX sync channel (SY0, the last saved channel) as a separate
+        # "<stream>-SYNC" stream, so `rec` holds only the 384 probe channels. The ap.meta we
+        # copy below still says nSavedChans=385 (and KS4's n_chan_bin matches it), so the sync
+        # channel must be appended back, uncorrected, when the output is written.
+        stream_ids = si.get_neo_streams('spikeglx', raw_data_directory.as_posix())[1]
+        sync_rec = None
+        if stream_id + '-SYNC' in stream_ids:
+            sync_rec = si.read_spikeglx(folder_path=raw_data_directory.as_posix(), stream_id=stream_id + '-SYNC')
+
         # SpikeGLX data is int16; InterpolateMotionRecording refuses non-float traces, so
         # cast lazily to float32 (scaled back to int16 with rounding when written out below).
         rec = si.astype(rec, dtype='float32')
@@ -307,8 +316,12 @@ class dredge():
         # single flat binary; KS4's find_binary globs *.bin and prefers the 'ap.bin' tag.
         # Round (not truncate) the interpolated float traces back to the int16 the meta describes.
         corrected_bin = dredge_output_dir / (stem + '.ap.bin')
+        rec_out = si.astype(rec_corr, dtype='int16', round=True)
+        if sync_rec is not None:
+            rec_out = si.aggregate_channels([rec_out, sync_rec])
+        print('dredge writing', rec_out.get_num_channels(), 'channels ->', corrected_bin)
         si.write_binary_recording(
-            si.astype(rec_corr, dtype='int16', round=True),
+            rec_out,
             file_paths=[corrected_bin.as_posix()],
             dtype='int16',
             **job_kwargs,
