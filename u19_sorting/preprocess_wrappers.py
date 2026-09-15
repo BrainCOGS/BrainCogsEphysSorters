@@ -36,8 +36,9 @@ def preprocess_main(recording_process_id, raw_data_directory, processed_data_dir
     return new_raw_data_directory
 
 
-def preprocess_has_tool(recording_process_id, tool_key):
-    """ Return True if the given preproc tool (e.g. 'dredge') is part of this job's preprocess params.
+def preprocess_tool_params(recording_process_id, tool_key):
+    """ Return the params dict of the given preproc tool (e.g. 'dredge') from this job's
+        preprocess parameter file, or None if the tool is not part of the job.
 
         Used by the sorter stage to decide whether to disable Kilosort's internal drift
         correction (so motion is not corrected twice).
@@ -45,13 +46,16 @@ def preprocess_has_tool(recording_process_id, tool_key):
 
     preprocess_parameter_filename = config.preprocess_parameter_file.format(recording_process_id)
     if not pathlib.Path(preprocess_parameter_filename).is_file():
-        return False
+        return None
 
     with open(preprocess_parameter_filename, 'r') as preprocess_param_file:
         preprocess_parameters = json.load(preprocess_param_file)
 
     tool_name = config.preproc_tools[tool_key]
-    return any(tool_name in this_preparam for this_preparam in preprocess_parameters)
+    for this_preparam in preprocess_parameters:
+        if tool_name in this_preparam:
+            return this_preparam[tool_name] or {}
+    return None
 
 def post_process_partial_results(recording_process_id, raw_data_directory, processed_data_directory):
 
@@ -235,7 +239,8 @@ class dredge():
             Args:
                 raw_data_directory  (Path): dir with the (CatGT) ap.bin/ap.meta to correct
                 dredge_output_dir   (Path): dir where the corrected ap.bin/ap.meta are written
-                dredge_params       (dict): {preset, device, motion_kwargs, job_kwargs}
+                dredge_params       (dict): {preset, device, motion_kwargs, job_kwargs,
+                                             disable_sorter_drift (bool, default True; read by the sorter stage)}
         """
 
         dredge_output_dir = pathlib.Path(dredge_output_dir)
