@@ -64,6 +64,32 @@ The catGT command from these params is:
 
 ```./runit.sh '-dir=raw_data_directory -run=towersTask -g=0 -t=0 -prb_fld -prb=0 -t_miss_ok -ap -apfilter=biquad,2,300,0 -gblcar -gfix=0.40,0.10,0.02 -dest=processed_data_directory -out_prb_fld```
 
+#### DREDge motion correction (optional, runs after CatGT and before the sorter)
+
+Add a `dredge` entry as a later preprocessing step (in the DB: a `PreClusterParamSteps.Step` with a higher
+`step_number` than the CatGT step). `run_dredge` reads the `*ap.bin/*ap.meta` produced by the previous step,
+estimates and applies motion with SpikeInterface's `dredge` preset on the GPU, and writes a corrected SpikeGLX-style
+`ap.bin` into `dredge_output/`, which the sorter then consumes exactly like a CatGT output.
+
+```
+{
+  "dredge": {
+    "preset": "dredge",
+    "device": "cuda",
+    "motion_kwargs": {},
+    "job_kwargs": {"n_jobs": 8},
+    "disable_sorter_drift": true
+  }
+}
+```
+
+- **preset:** SpikeInterface `correct_motion` preset (`dredge`, `dredge_fast`, `kilosort_like`, ...).
+- **device:** `cuda` (falls back to `cpu` if no GPU) or `cpu`.
+- **motion_kwargs / job_kwargs:** forwarded to `correct_motion` (estimation options / parallel chunk options).
+- **disable_sorter_drift:** (bool, default `true`) when true the sorter stage sets `nblocks=0` (KS3/KS4) or
+  `reorder=0` (KS2) so motion is corrected only once. Set to `false` to keep Kilosort's own drift correction
+  on top of DREDge.
+
 ### Process parameter file
 
 Process parameter file is a json file to configure sorter.
