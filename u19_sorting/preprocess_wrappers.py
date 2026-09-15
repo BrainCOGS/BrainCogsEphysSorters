@@ -340,22 +340,32 @@ class dredge():
 
     @staticmethod
     def dredge_check_output(dredge_output_dir):
+        """ True only if a complete corrected recording is present: an ap.bin next to an ap.meta
+            whose fileSizeBytes matches the ap.bin on disk. Motion interpolation keeps the sample
+            and channel count, so the corrected file must be exactly as large as the source the
+            meta describes. A wrong-sized file (killed job, or an earlier run that dropped the
+            sync channel) is removed so the next run regenerates it instead of feeding it to KS4.
+        """
 
-        file_patterns = ['/*ap.bin', '/*ap.meta']
-
-        child_dirs = [x[0] for x in os.walk(dredge_output_dir)]
-        patterns_found = 0
-        for dir in child_dirs:
-            for pat in file_patterns:
-                found_file = glob.glob(dir+pat)
-                if len(found_file) > 0:
-                    patterns_found = 1
-                    break
-
-            if patterns_found:
-                break
-
-        if patterns_found:
-            return 1
-        else:
+        dredge_output_dir = pathlib.Path(dredge_output_dir)
+        metas = sorted(dredge_output_dir.glob('*ap.meta')) if dredge_output_dir.is_dir() else []
+        if not metas:
             return 0
+
+        meta = metas[0]
+        bin_file = meta.with_name(meta.name[:-len('.ap.meta')] + '.ap.bin')
+        if not bin_file.is_file():
+            return 0
+
+        expected = re.search(r'^fileSizeBytes=(\d+)', meta.read_text(), flags=re.M)
+        if expected is None:
+            return 1  # meta without size info: fall back to existence check
+
+        if bin_file.stat().st_size == int(expected.group(1)):
+            return 1
+
+        print('dredge output', bin_file, 'is', bin_file.stat().st_size, 'bytes, meta expects',
+              expected.group(1), '-> discarding incomplete output')
+        bin_file.unlink()
+        meta.unlink()
+        return 0
