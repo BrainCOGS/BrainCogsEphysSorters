@@ -272,6 +272,10 @@ class dredge():
 
         rec = si.read_spikeglx(folder_path=raw_data_directory.as_posix(), stream_id=stream_id)
 
+        # SpikeGLX data is int16; InterpolateMotionRecording refuses non-float traces, so
+        # cast lazily to float32 (scaled back to int16 with rounding when written out below).
+        rec = si.astype(rec, dtype='float32')
+
         # GPU for motion estimation unless overridden. DREDge does not auto-detect a GPU
         # (unlike KS4), so we pass the device explicitly.
         device = dredge_params.get('device')
@@ -301,9 +305,10 @@ class dredge():
 
         # Materialize a SpikeGLX-style ap.bin. write_binary_recording (not save()) writes a
         # single flat binary; KS4's find_binary globs *.bin and prefers the 'ap.bin' tag.
+        # Round (not truncate) the interpolated float traces back to the int16 the meta describes.
         corrected_bin = dredge_output_dir / (stem + '.ap.bin')
         si.write_binary_recording(
-            rec_corr,
+            si.astype(rec_corr, dtype='int16', round=True),
             file_paths=[corrected_bin.as_posix()],
             dtype='int16',
             **job_kwargs,
