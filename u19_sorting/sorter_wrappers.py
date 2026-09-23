@@ -5,6 +5,7 @@ import os
 import subprocess
 import json
 import u19_sorting.config as config
+import u19_sorting.preprocess_wrappers as pw
 from u19_sorting.utils import write_file
 
 
@@ -27,6 +28,16 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
     chanmap_filename = config.chanmap_file.format(recording_process_id)
 
     sorter = config.sorters_names[process_parameters['clustering_method']]
+
+    # If DREDge ran as a preprocessing step, motion is already corrected. By default disable
+    # Kilosort's own internal drift correction so motion is not corrected twice; set
+    # "disable_sorter_drift": false in the dredge preprocess params to keep both.
+    dredge_params = pw.preprocess_tool_params(recording_process_id, 'dredge')
+    if dredge_params is not None:
+        if dredge_params.get('disable_sorter_drift', True):
+            process_parameters = disable_internal_drift(process_parameters, sorter)
+        else:
+            print('DREDge preprocessing detected but disable_sorter_drift=false: keeping', sorter, 'internal drift correction')
 
 
     sorter_processed_directory = pathlib.Path(processed_directory, process_parameters['clustering_method']+'_output')
@@ -55,6 +66,29 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
         params_file_for_different_os(sorter_processed_directory)
 
     return sorter_processed_directory
+
+
+def disable_internal_drift(process_parameters, sorter):
+    """ Turn off a Kilosort sorter's built-in motion/drift correction.
+
+        Used when DREDge has already corrected motion in preprocessing. The mechanism differs
+        per Kilosort version:
+          - KS4 (python): nblocks=0 in the settings dict (KS4 rejects unknown keys, so no
+            extra flag is added).
+          - KS3 (matlab kilosortbatch): ops.nblocks=0 (kilosortbatch.m honors this to skip
+            datashift2).
+          - KS2 (matlab run_ks2): ops.reorder=0 (KS2 uses batch reordering, not nblocks).
+    """
+
+    if sorter == config.sorters_names['kilosort4']:
+        process_parameters['nblocks'] = 0
+    elif sorter == config.sorters_names['kilosort3']:
+        process_parameters['nblocks'] = 0
+    elif sorter == config.sorters_names['kilosort2']:
+        process_parameters['reorder'] = 0
+
+    print('DREDge preprocessing detected: disabled internal drift correction for', sorter)
+    return process_parameters
 
 
 class Kilosort2():

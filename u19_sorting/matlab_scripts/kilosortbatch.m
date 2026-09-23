@@ -83,7 +83,14 @@ function kilosortbatch(parameter_file, raw_directory, processed_directory, chann
     ops.fbinary = fullfile(raw_directory, fs(1).name);
     
     rez                = preprocessDataSub(ops);
-    rez                = datashift2(rez, 1);
+    % Drift correction. ops.nblocks controls registration: 0 turns it off (e.g. when DREDge
+    % already corrected motion in preprocessing), >0 enables datashift. datashift2's second arg
+    % is the do-correction flag, so nblocks==0 skips it.
+    if isfield(ops, 'nblocks') && ops.nblocks == 0
+        rez            = datashift2(rez, 0);
+    else
+        rez            = datashift2(rez, 1);
+    end
 
     [rez, st3, tF]     = extract_spikes(rez);
 

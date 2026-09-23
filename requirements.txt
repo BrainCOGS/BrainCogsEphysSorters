@@ -1,5 +1,0 @@
-kilosort[gui]
-ibllib
-ONE-api
-pandas
-numpy
