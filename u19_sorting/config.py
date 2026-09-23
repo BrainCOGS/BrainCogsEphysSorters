@@ -48,6 +48,7 @@ matlab_scripts = pathlib.Path(repository_dir, "u19_sorting", "matlab_scripts")
 sorters_names = {
     'kilosort4':     'Kilosort4',
     'kilosort3':     'Kilosort3',
+    'kilosort2_5':   'Kilosort2_5',
     'kilosort2':     'Kilosort2',
     'SpikeInterface':'spike_interface'
 }
@@ -61,3 +62,14 @@ preproc_tools_delete_post = [
     'catgt',
     'dredge',
 ]
+
+
+# Sorter version allow-list (see sorter_registry.py). Jobs select a key from this file via
+# "sorter_version" in the process params; override the path with U19_SORTER_REGISTRY.
+sorter_registry_file = pathlib.Path(repository_dir, 'sorter_registry.json').as_posix()
+
+# Apptainer images for containerized sorters. Built once on a login node (internet) by
+# `python -m u19_sorting.apptainer_cache`; compute nodes only read the .sif files.
+# Override with U19_APPTAINER_SIF_DIR / U19_APPTAINER_CACHEDIR.
+apptainer_sif_dir = '/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif'
+apptainer_cache_dir = '/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/cache'
