@@ -1,5 +1,6 @@
 """ sorter_main dispatch on the optional `sorter_version` registry key in the process params. """
 import json
+import pathlib
 
 import pytest
 
@@ -262,3 +263,47 @@ def test_dredge_native_kilosort4_still_uses_nblocks(job):
     job.run()
     # KS4 native rejects do_correction (not a KS4 setting)
     assert job.read_params() == {"nblocks": 0}
+
+
+# ----------------------------------------------------------------------------- recording extra_requirements
+
+class FakeRecording:
+    def __init__(self, extra_requirements):
+        self.extra_requirements = list(extra_requirements)
+
+
+@pytest.fixture
+def container_run(tmp_path, monkeypatch):
+    """ Real SpikeInterfaceContainer.run with the recording reader and run_sorter faked. """
+    import spikeinterface.sorters as ss
+
+    (tmp_path / CONTAINER["sif"]).write_bytes(b"SIF")
+    registry = {"kilosort3@0.2.0": sr.parse_entry("kilosort3@0.2.0", CONTAINER)}
+    resolved = sr.resolve("kilosort3@0.2.0", registry=registry, sif_dir=tmp_path)
+    seen = {}
+
+    def fake_run_sorter(recording, **kwargs):
+        seen["extra_requirements"] = list(recording.extra_requirements)
+        (pathlib.Path(kwargs["folder"]) / "sorter_output").mkdir(parents=True)
+
+    monkeypatch.setattr(ss, "run_sorter", fake_run_sorter)
+
+    def run(extra_requirements):
+        monkeypatch.setattr(sw.SpikeInterfaceContainer, "read_recording",
+                            staticmethod(lambda raw: FakeRecording(extra_requirements)))
+        sw.SpikeInterfaceContainer.run(resolved, tmp_path / "raw", tmp_path / "out", {})
+        return seen["extra_requirements"]
+
+    return run
+
+
+@pytest.mark.parametrize("extra", [[], ["neo"], ["neo", "neo"]])
+def test_container_run_drops_requirements_baked_into_image(container_run, extra):
+    # Every neo-based recording (SpikeGLX included) asks for "neo"; SpikeInterface would
+    # `pip install --upgrade neo` from PyPI in the container, which compute nodes can't reach.
+    assert container_run(extra) == []
+
+
+def test_container_run_refuses_requirements_not_in_image(container_run):
+    with pytest.raises(ValueError, match="h5py"):
+        container_run(["neo", "h5py"])

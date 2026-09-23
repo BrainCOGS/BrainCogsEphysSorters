@@ -38,7 +38,7 @@ def definition_file_text(entry):
         f'From: {entry.image[len("docker://"):]}\n'
         '\n'
         '%post\n'
-        f'    python -m pip install --no-cache-dir "spikeinterface=={entry.spikeinterface}"\n'
+        f'    python -m pip install --no-cache-dir "spikeinterface[full]=={entry.spikeinterface}"\n'
         '\n'
         '%labels\n'
         f'    u19.sorter_version {entry.key}\n'

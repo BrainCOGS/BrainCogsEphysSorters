@@ -49,7 +49,8 @@ def test_definition_bakes_in_pinned_spikeinterface(entry):
     # `From:` takes the reference without the docker:// scheme
     assert "From: spikeinterface/kilosort3-compiled-base:0.2.0" in text
     assert "docker://" not in text.split("%labels")[0]
-    assert "spikeinterface==0.104.8" in text
+    # [full] like SpikeInterface's own in-container install: the Kilosort wrappers need scipy
+    assert '"spikeinterface[full]==0.104.8"' in text
     assert "u19.sorter_version kilosort3@0.2.0" in text
 
 

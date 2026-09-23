@@ -363,6 +363,9 @@ class SpikeInterfaceContainer():
         'spikeinterface_version', 'spikeinterface_folder_source',
     }
 
+    # Recording extra_requirements already in the image (installed with spikeinterface).
+    IMAGE_PACKAGES = {'neo'}
+
     @staticmethod
     def run_sorter_kwargs(resolved, folder, sorter_params):
 
@@ -404,6 +407,15 @@ class SpikeInterfaceContainer():
         import spikeinterface.sorters as ss
 
         recording = SpikeInterfaceContainer.read_recording(raw_directory)
+
+        # SpikeInterface pip installs a recording's extra_requirements from PyPI inside the
+        # container (every neo reader, SpikeGLX included, asks for "neo"). Compute nodes are
+        # offline, so drop what the image already has and refuse anything else.
+        missing = sorted(set(recording.extra_requirements) - SpikeInterfaceContainer.IMAGE_PACKAGES)
+        if missing:
+            raise ValueError(f'{resolved.entry.key}: recording needs {missing}, which the image does not provide')
+        recording.extra_requirements = []
+
         kwargs = SpikeInterfaceContainer.run_sorter_kwargs(resolved, output_directory, sorter_params)
         print('running', resolved.entry.key, 'in', resolved.sif_path)
         ss.run_sorter(recording=recording, **kwargs)

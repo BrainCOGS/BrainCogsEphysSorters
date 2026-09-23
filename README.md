@@ -130,7 +130,7 @@ python -m u19_sorting.apptainer_cache             # build all missing images (or
 python -m u19_sorting.apptainer_cache --check     # exit 1 if any image is missing
 ```
 
-Each image is the digest-pinned SpikeInterface docker image with the pinned `spikeinterface` installed on top
+Each image is the digest-pinned SpikeInterface docker image with the pinned `spikeinterface[full]` installed on top
 (jobs run with `installation_mode="no-install"`, so nothing is pip-installed at run time). The host's
 `spikeinterface` must match the entry's `spikeinterface` version. Images are built next to their final
 location and renamed into place read-only; existing images are never rebuilt. Add `--fakeroot` if the
@@ -144,6 +144,8 @@ cluster requires it for `apptainer build`.
 
 To add a version: append a new key to `sorter_registry.json` (never edit or reuse an existing key, since past
 jobs' provenance points at it), then run `python -m u19_sorting.apptainer_cache <key>` on a login node.
+An image is only rebuilt when its `.sif` file is missing, so if the build recipe in `apptainer_cache.py` changes,
+new entries need new `.sif` names.
 
 
 ### Tiger cluster directory organization
