@@ -97,6 +97,54 @@ To configure this file refer to each sorter documentation:
 
 - [Kilosort2](https://github.com/MouseLand/Kilosort#parameters)
 
+#### Pinned sorter versions (optional `sorter_version`)
+
+A process parameter file can pin the sorter build with a `sorter_version` key from
+[`sorter_registry.json`](sorter_registry.json), the allow-list of versions a job can run:
+
+```
+{
+  "clustering_method": "kilosort3",
+  "sorter_version": "kilosort3@3.0.2",
+  "detect_threshold": 6
+}
+```
+
+- No `sorter_version` (or `null`): unchanged behavior (KS4 from the job env, KS2/KS3 through MATLAB).
+- `native` entries (e.g. `kilosort4@4.1.7`) run in the job env, and the job fails if the installed
+  `kilosort` isn't that exact version, so a shared env can't be upgraded silently.
+- `container` entries run the sorter through SpikeInterface inside a cached Apptainer image, so KS2/2.5/3
+  don't need a MATLAB license. The remaining params are **SpikeInterface** sorter params (`detect_threshold`, ...), not Kilosort
+  `ops`, and the probe comes from the SpikeGLX `.meta` rather than the chanmap file. The Kilosort/phy files end up in
+  `<clustering_method>_output/sorter_output/`.
+- Unknown keys, a `clustering_method` that doesn't match the key, or an image that isn't cached fail the job
+  before sorting starts. What ran is recorded in `sorter_provenance.json` next to the sorter output.
+
+##### Caching container images (login node)
+
+Compute nodes have no internet, so they never pull images. Build them once on a login node into shared storage:
+
+```
+python -m u19_sorting.apptainer_cache --dry-run   # what's missing
+python -m u19_sorting.apptainer_cache             # build all missing images (or pass keys)
+python -m u19_sorting.apptainer_cache --check     # exit 1 if any image is missing
+```
+
+Each image is the digest-pinned SpikeInterface docker image with the pinned `spikeinterface` installed on top
+(jobs run with `installation_mode="no-install"`, so nothing is pip-installed at run time). The host's
+`spikeinterface` must match the entry's `spikeinterface` version. Images are built next to their final
+location and renamed into place read-only; existing images are never rebuilt. Add `--fakeroot` if the
+cluster requires it for `apptainer build`.
+
+| Setting | Default | Override |
+|---|---|---|
+| Registry | `sorter_registry.json` in this repo | `U19_SORTER_REGISTRY` |
+| Images (`.sif`) | `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif` | `U19_APPTAINER_SIF_DIR` |
+| Apptainer layer cache | `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/cache` | `U19_APPTAINER_CACHEDIR` |
+
+To add a version: append a new key to `sorter_registry.json` (never edit or reuse an existing key, since past
+jobs' provenance points at it), then run `python -m u19_sorting.apptainer_cache <key>` on a login node.
+
 
 ### Tiger cluster directory organization
 
