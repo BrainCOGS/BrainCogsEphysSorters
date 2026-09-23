@@ -1,6 +1,0 @@
-kilosort[gui]
-ibllib
-ONE-api
-pandas
-numpy
-spikeinterface[full]>=0.101
