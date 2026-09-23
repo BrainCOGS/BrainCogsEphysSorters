@@ -373,6 +373,10 @@ class SpikeInterfaceContainer():
         if reserved:
             raise ValueError(f'sorter params may not set run_sorter arguments: {reserved}')
 
+        # SpikeInterface's Kilosort wrappers copy the recording to recording.dat; phy reads
+        # temp_wh.dat, so drop the raw-sized copy unless the paramset asks to keep it.
+        sorter_params = {'delete_recording_dat': True, **sorter_params}
+
         return dict(
             sorter_name=resolved.entry.sorter,
             folder=str(folder),

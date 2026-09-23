@@ -307,3 +307,14 @@ def test_container_run_drops_requirements_baked_into_image(container_run, extra)
 def test_container_run_refuses_requirements_not_in_image(container_run):
     with pytest.raises(ValueError, match="h5py"):
         container_run(["neo", "h5py"])
+
+
+def test_container_deletes_recording_copy_by_default(tmp_path):
+    # SpikeInterface's KS wrappers copy the whole recording to recording.dat; phy reads
+    # temp_wh.dat, so the copy is dead weight the size of the raw data.
+    (tmp_path / CONTAINER["sif"]).write_bytes(b"SIF")
+    registry = {"kilosort3@0.2.0": sr.parse_entry("kilosort3@0.2.0", CONTAINER)}
+    resolved = sr.resolve("kilosort3@0.2.0", registry=registry, sif_dir=tmp_path)
+    assert sw.SpikeInterfaceContainer.run_sorter_kwargs(resolved, tmp_path, {})["delete_recording_dat"] is True
+    kept = sw.SpikeInterfaceContainer.run_sorter_kwargs(resolved, tmp_path, {"delete_recording_dat": False})
+    assert kept["delete_recording_dat"] is False
