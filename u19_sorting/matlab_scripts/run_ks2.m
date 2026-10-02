@@ -7,15 +7,15 @@ function run_ks2(parameter_file, raw_directory, processed_directory, channel_map
     % rootH = '/mnt/h0';  # temporary folder if different than main
     % run_ks2_ibl(rootZ, rootH)
     % run_ks2_ibl(rootZ, rootH, dir_pattern, channel_map_file)
-    
+
     try
-        
+
         this_dir = fileparts(which('run_ks2'));
         braincogs_ephys_sorters_dir = fileparts(fileparts(this_dir));
 
         disp(this_dir)
-        
-        
+
+
         %% 1) Set paths and get ks2 commit hash
         kilosort2_dir = fullfile(braincogs_ephys_sorters_dir, 'sorters', 'Kilosort2');
         npy_matlab_dir = fullfile(braincogs_ephys_sorters_dir, 'sorters', 'npy-matlab');
@@ -23,19 +23,19 @@ function run_ks2(parameter_file, raw_directory, processed_directory, channel_map
         addpath(genpath(npy_matlab_dir))
         %[~, hash] = unix(['git --git-dir=' fullfile(kilosort2_dir, '.git') ' rev-parse --verify HEAD'])
         %disp(["ks2 version: " hash])
-        
+
         %% 2) Parse input arguments
         rootZ = raw_directory;
         rootH = processed_directory;
-        
+
         if nargin <= 3
-            channel_map_file = fullfile(kilosort2_dir, 'configFiles' ,'neuropixPhase3B1_kilosortChanMap.mat'); 
+            channel_map_file = fullfile(kilosort2_dir, 'configFiles' ,'neuropixPhase3B1_kilosortChanMap.mat');
         end
-    
+
         if nargin <= 4
-            dir_pattern = '*.ap.bin'; 
+            dir_pattern = '*.ap.bin';
         end
-        
+
         %% 3) get IBL params
         %ops = ks2_custom_params(channel_map_file, rootH);
         [ops, success] = loadJSONfile(parameter_file);
@@ -49,42 +49,42 @@ function run_ks2(parameter_file, raw_directory, processed_directory, channel_map
         ops.chanMap     = channel_map_file;
         disp(channel_map_file)
         ops.fproc       = fullfile(processed_directory, 'temp_wh.dat'); % proc file on a fast SSD
-        
+
         %% 4) KS2 run
         fprintf('Looking for data inside %s \n', rootZ)
         disp(raw_directory)
-        
+
         % find the binary file
         ops.fbinary = fullfile(raw_directory, getfield(dir(fullfile(raw_directory, dir_pattern)), 'name'));
-        
+
         % preprocess data to create temp_wh.dat
         rez = preprocessDataSub(ops);
-        
+
         % time-reordering as a function of drift
         rez = clusterSingleBatches(rez);
         save(fullfile(processed_directory, 'rez.mat'), 'rez', '-v7.3');
-        
+
         % main tracking and template matching algorithm
         rez = learnAndSolve8b(rez);
-        
+
         % final merges
         rez = find_merges(rez, 1);
-        
+
         % final splits by SVD
         rez = splitAllClusters(rez, 1);
-        
+
         % final splits by amplitudes
         rez = splitAllClusters(rez, 0);
-        
+
         % decide on cutoff
         rez = set_cutoff(rez);
-        
+
         fprintf('found %d good units \n', sum(rez.good>0))
-        
+
         % write to Phy
         fprintf('Saving results to Phy  \n')
         rezToPhy(rez, processed_directory);
-        
+
         %% 5) WRAP-UP
         fid = fopen([processed_directory filesep 'spike_sorting_ks2.log'], 'w+');
         for ff = fieldnames(ops)'
@@ -104,7 +104,7 @@ function run_ks2(parameter_file, raw_directory, processed_directory, channel_map
         h(3) = figure(3);
         savefig(h, fullfile(processed_directory, 'kilosort_overview.fig'))
         close(h);
-        
+
     catch exception
         str=[exception.message newline];
         for m=1:length(exception.stack)
@@ -115,13 +115,13 @@ function run_ks2(parameter_file, raw_directory, processed_directory, channel_map
         %disp('run_ks2.m failed') % this is used to find out that matlab failed in stdout
         throw(exception)
     end
-    
+
     end
-    
+
     function [json, success] = loadJSONfile(file)
-    
+
     success = 1;
-    
+
     try
         fid = fopen(file);
         json = jsondecode(char(fread(fid,inf)'));
@@ -131,10 +131,10 @@ function run_ks2(parameter_file, raw_directory, processed_directory, channel_map
         json    = struct;
         fclose(fid);
     end
-    
+
     end
-    
-    
+
+
     function ops = ks2_custom_params(channel_map_file, rootH)
     ops.chanMap = channel_map_file;
     ops.fs = 30000;   % sample rate
@@ -170,4 +170,3 @@ function run_ks2(parameter_file, raw_directory, processed_directory, channel_map
     ops.trange = [0 Inf]; % time range to sort
     ops.NchanTOT    = 385; % total number of channels in your recording
     end
-    

@@ -1,122 +1,153 @@
-
-
-import pathlib
-import os
-import subprocess
 import json
-import u19_sorting.config as config
+import pathlib
+import subprocess
+
 import u19_sorting.preprocess_wrappers as pw
+from u19_sorting import config
 from u19_sorting.utils import write_file
 
 
 def sorter_main(recording_process_id, raw_directory, processed_directory):
-    """ Main function to call appropiate sorter
-        Args:
-            raw_directory               (str):   Directory where raw (or preprocessed) data is located
-            processed_directory         (str):   Directory where processed data will be stored
-            preprocess_parameters       (dict):  Dictionary with preprocessing parameters and sorter algorithm selection
-            process_parameters          (dict):  Dictionary with specific sorting parameters
-            process_parameter_filename  (dict):  Filename of json with sorting parameters
+    """Main function to call appropiate sorter
+    Args:
+        raw_directory               (str):   Directory where raw (or preprocessed) data is located
+        processed_directory         (str):   Directory where processed data will be stored
+        preprocess_parameters       (dict):  Dictionary with preprocessing parameters and sorter algorithm selection
+        process_parameters          (dict):  Dictionary with specific sorting parameters
+        process_parameter_filename  (dict):  Filename of json with sorting parameters
     """
 
     # Get param file
-    process_parameters_filename = config.process_parameter_file.format(recording_process_id)
-    with open(process_parameters_filename, 'r') as process_param_file:
+    process_parameters_filename = config.process_parameter_file.format(
+        recording_process_id
+    )
+    with open(process_parameters_filename) as process_param_file:
         process_parameters = json.load(process_param_file)
 
     # Get chanmap file
     chanmap_filename = config.chanmap_file.format(recording_process_id)
 
-    sorter = config.sorters_names[process_parameters['clustering_method']]
+    sorter = config.sorters_names[process_parameters["clustering_method"]]
 
     # If DREDge ran as a preprocessing step, motion is already corrected. By default disable
     # Kilosort's own internal drift correction so motion is not corrected twice; set
     # "disable_sorter_drift": false in the dredge preprocess params to keep both.
-    dredge_params = pw.preprocess_tool_params(recording_process_id, 'dredge')
+    dredge_params = pw.preprocess_tool_params(recording_process_id, "dredge")
     if dredge_params is not None:
-        if dredge_params.get('disable_sorter_drift', True):
+        if dredge_params.get("disable_sorter_drift", True):
             process_parameters = disable_internal_drift(process_parameters, sorter)
         else:
-            print('DREDge preprocessing detected but disable_sorter_drift=false: keeping', sorter, 'internal drift correction')
+            print(
+                "DREDge preprocessing detected but disable_sorter_drift=false: keeping",
+                sorter,
+                "internal drift correction",
+            )
 
-
-    sorter_processed_directory = pathlib.Path(processed_directory, process_parameters['clustering_method']+'_output')
+    sorter_processed_directory = pathlib.Path(
+        processed_directory, process_parameters["clustering_method"] + "_output"
+    )
     pathlib.Path(sorter_processed_directory).mkdir(parents=True, exist_ok=True)
 
-    l = process_parameters.pop("clustering_method")
+    l = process_parameters.pop("clustering_method")  # noqa: E741, F841  (pop() mutates the dict)
     params_text = json.dumps(process_parameters)
-    print('new params')
+    print("new params")
     print(params_text)
     write_file(process_parameters_filename, params_text)
 
-    if sorter == config.sorters_names['kilosort2']:
-        Kilosort2.run_Kilosort2(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
-    elif sorter == config.sorters_names['kilosort3']:
-        Kilosort3.run_Kilosort3(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
-    elif sorter == config.sorters_names['kilosort4']:
-        print('running Kilosort 4 here xxxxxxxx')
-        Kilosort4.run_Kilosort4(raw_directory, sorter_processed_directory, process_parameters_filename, chanmap_filename)
+    if sorter == config.sorters_names["kilosort2"]:
+        Kilosort2.run_Kilosort2(
+            raw_directory,
+            sorter_processed_directory,
+            process_parameters_filename,
+            chanmap_filename,
+        )
+    elif sorter == config.sorters_names["kilosort3"]:
+        Kilosort3.run_Kilosort3(
+            raw_directory,
+            sorter_processed_directory,
+            process_parameters_filename,
+            chanmap_filename,
+        )
+    elif sorter == config.sorters_names["kilosort4"]:
+        print("running Kilosort 4 here xxxxxxxx")
+        Kilosort4.run_Kilosort4(
+            raw_directory,
+            sorter_processed_directory,
+            process_parameters_filename,
+            chanmap_filename,
+        )
 
     else:
         print("skipping")
 
-    print(sorter, ' this is the sorter')
-    if 'kilosort' in sorter.lower():
-        print('params file different os function here', sorter_processed_directory)
+    print(sorter, " this is the sorter")
+    if "kilosort" in sorter.lower():
+        print("params file different os function here", sorter_processed_directory)
         params_file_for_different_os(sorter_processed_directory)
 
     return sorter_processed_directory
 
 
 def disable_internal_drift(process_parameters, sorter):
-    """ Turn off a Kilosort sorter's built-in motion/drift correction.
+    """Turn off a Kilosort sorter's built-in motion/drift correction.
 
-        Used when DREDge has already corrected motion in preprocessing. The mechanism differs
-        per Kilosort version:
-          - KS4 (python): nblocks=0 in the settings dict (KS4 rejects unknown keys, so no
-            extra flag is added).
-          - KS3 (matlab kilosortbatch): ops.nblocks=0 (kilosortbatch.m honors this to skip
-            datashift2).
-          - KS2 (matlab run_ks2): ops.reorder=0 (KS2 uses batch reordering, not nblocks).
+    Used when DREDge has already corrected motion in preprocessing. The mechanism differs
+    per Kilosort version:
+      - KS4 (python): nblocks=0 in the settings dict (KS4 rejects unknown keys, so no
+        extra flag is added).
+      - KS3 (matlab kilosortbatch): ops.nblocks=0 (kilosortbatch.m honors this to skip
+        datashift2).
+      - KS2 (matlab run_ks2): ops.reorder=0 (KS2 uses batch reordering, not nblocks).
     """
 
-    if sorter == config.sorters_names['kilosort4']:
-        process_parameters['nblocks'] = 0
-    elif sorter == config.sorters_names['kilosort3']:
-        process_parameters['nblocks'] = 0
-    elif sorter == config.sorters_names['kilosort2']:
-        process_parameters['reorder'] = 0
+    if (
+        sorter == config.sorters_names["kilosort4"]
+        or sorter == config.sorters_names["kilosort3"]
+    ):
+        process_parameters["nblocks"] = 0
+    elif sorter == config.sorters_names["kilosort2"]:
+        process_parameters["reorder"] = 0
 
-    print('DREDge preprocessing detected: disabled internal drift correction for', sorter)
+    print(
+        "DREDge preprocessing detected: disabled internal drift correction for", sorter
+    )
     return process_parameters
 
 
-class Kilosort2():
-    """ Kilosort2 caller functions """
+class Kilosort2:
+    """Kilosort2 caller functions"""
 
-    #This library directory
-    ks2_directory = pathlib.Path(config.sorters_dir, config.sorters_names['kilosort2']).as_posix()
+    # This library directory
+    ks2_directory = pathlib.Path(
+        config.sorters_dir, config.sorters_names["kilosort2"]
+    ).as_posix()
 
     @staticmethod
-    def run_Kilosort2(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
-        """ Function that calls Kilosort2
+    def run_Kilosort2(
+        raw_directory, processed_directory, process_parameter_filename, chanmap_filename
+    ):
+        """Function that calls Kilosort2
 
-            Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located
-                processed_directory         (str):   Directory where processed data will be stored
-                process_parameter_filename  (dict):  Filename of json with sorting parameters
+        Args:
+            raw_directory               (str):   Directory where raw (or preprocessed) data is located
+            processed_directory         (str):   Directory where processed data will be stored
+            process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        ks2_command = Kilosort2.create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
-        print('ks2_command .....', ks2_command)
-        p = subprocess.run(ks2_command, universal_newlines=True, shell=True, capture_output=True)
+        ks2_command = Kilosort2.create_Kilosort2_command(
+            raw_directory,
+            processed_directory,
+            process_parameter_filename,
+            chanmap_filename,
+        )
+        print("ks2_command .....", ks2_command)
+        p = subprocess.run(ks2_command, text=True, shell=True, capture_output=True)
 
-        print('stderr here', p.stderr)
-        print('stdout', p.stdout)
+        print("stderr here", p.stderr)
+        print("stdout", p.stdout)
 
         if p.returncode:
             raise Exception(p.stderr)
-
 
     '''
     @staticmethod
@@ -139,26 +170,40 @@ class Kilosort2():
     '''
 
     @staticmethod
-    def create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
-        """ Function that creates the command to call matlab kilosort2 script
+    def create_Kilosort2_command(
+        raw_directory, processed_directory, process_parameter_filename, chanmap_filename
+    ):
+        """Function that creates the command to call matlab kilosort2 script
 
-            Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located
-                processed_directory         (str):   Directory where processed data will be stored
-                process_parameter_filename  (dict):  Filename of json with sorting parameters
+        Args:
+            raw_directory               (str):   Directory where raw (or preprocessed) data is located
+            processed_directory         (str):   Directory where processed data will be stored
+            process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        #ks2_command =  ['matlab', '-nodisplay', '-nosplash', '-r', "' disp(pwd); addpath(genpath(pwd)); " + config.run_ks_script + "; exit'"]
-        #ks2_command = ' '.join(ks2_command)
+        # ks2_command =  ['matlab', '-nodisplay', '-nosplash', '-r', "' disp(pwd); addpath(genpath(pwd)); " + config.run_ks_script + "; exit'"]
+        # ks2_command = ' '.join(ks2_command)
 
-        matlab_command = "addpath(genpath('" + Kilosort2.ks2_directory + "'));  \
-        addpath('" + config.matlab_scripts.as_posix() + "'); \
-        run_ks2('" + process_parameter_filename + "','" \
-            + raw_directory.as_posix() + "','"  + processed_directory.as_posix() + "','"\
-                + chanmap_filename + "'); exit"
+        matlab_command = (
+            "addpath(genpath('"
+            + Kilosort2.ks2_directory
+            + "'));  \
+        addpath('"
+            + config.matlab_scripts.as_posix()
+            + "'); \
+        run_ks2('"
+            + process_parameter_filename
+            + "','"
+            + raw_directory.as_posix()
+            + "','"
+            + processed_directory.as_posix()
+            + "','"
+            + chanmap_filename
+            + "'); exit"
+        )
 
-        ks2_command =  ['matlab', '-nodisplay', '-nosplash', '-r']
-        ks2_command = ' '.join(ks2_command)
+        ks2_command = ["matlab", "-nodisplay", "-nosplash", "-r"]
+        ks2_command = " ".join(ks2_command)
         ks2_command += ' "'
         ks2_command += matlab_command
         ks2_command += '"'
@@ -166,117 +211,146 @@ class Kilosort2():
         return ks2_command
 
 
-class Kilosort3():
-    """ Kilosort caller functions """
+class Kilosort3:
+    """Kilosort caller functions"""
 
-    #This library directory
-    ks_directory = pathlib.Path(config.sorters_dir, config.sorters_names['kilosort3']).as_posix()
+    # This library directory
+    ks_directory = pathlib.Path(
+        config.sorters_dir, config.sorters_names["kilosort3"]
+    ).as_posix()
 
     @staticmethod
-    def run_Kilosort3(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
-        """ Function that calls Kilosort
+    def run_Kilosort3(
+        raw_directory, processed_directory, process_parameter_filename, chanmap_filename
+    ):
+        """Function that calls Kilosort
 
-            Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located
-                processed_directory         (str):   Directory where processed data will be stored
-                process_parameter_filename  (dict):  Filename of json with sorting parameters
+        Args:
+            raw_directory               (str):   Directory where raw (or preprocessed) data is located
+            processed_directory         (str):   Directory where processed data will be stored
+            process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        ks_command = Kilosort3.create_Kilosort3_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
-        print('ks_command .....', ks_command)
-        print('kilosort3 here .............................')
-        p = subprocess.run(ks_command, universal_newlines=True, shell=True, capture_output=True)
+        ks_command = Kilosort3.create_Kilosort3_command(
+            raw_directory,
+            processed_directory,
+            process_parameter_filename,
+            chanmap_filename,
+        )
+        print("ks_command .....", ks_command)
+        print("kilosort3 here .............................")
+        p = subprocess.run(ks_command, text=True, shell=True, capture_output=True)
 
-        print('stderr here', p.stderr)
-        print('stdout', p.stdout)
+        print("stderr here", p.stderr)
+        print("stdout", p.stdout)
 
         if p.returncode:
             raise Exception(p.stderr)
 
-
-
     @staticmethod
-    def create_Kilosort3_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
-        """ Function that creates the command to call matlab kilosort2 script
+    def create_Kilosort3_command(
+        raw_directory, processed_directory, process_parameter_filename, chanmap_filename
+    ):
+        """Function that creates the command to call matlab kilosort2 script
 
-            Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located
-                processed_directory         (str):   Directory where processed data will be stored
-                process_parameter_filename  (dict):  Filename of json with sorting parameters
+        Args:
+            raw_directory               (str):   Directory where raw (or preprocessed) data is located
+            processed_directory         (str):   Directory where processed data will be stored
+            process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        matlab_command = "addpath(genpath('" + Kilosort3.ks_directory + "'));  \
-        addpath('" + config.matlab_scripts.as_posix() + "'); \
-        kilosortbatch('" + process_parameter_filename + "','" \
-            + raw_directory.as_posix() + "','"  + processed_directory.as_posix() + "','"\
-                + chanmap_filename + "'); exit"
+        matlab_command = (
+            "addpath(genpath('"
+            + Kilosort3.ks_directory
+            + "'));  \
+        addpath('"
+            + config.matlab_scripts.as_posix()
+            + "'); \
+        kilosortbatch('"
+            + process_parameter_filename
+            + "','"
+            + raw_directory.as_posix()
+            + "','"
+            + processed_directory.as_posix()
+            + "','"
+            + chanmap_filename
+            + "'); exit"
+        )
 
-        ks_command =  ['matlab', '-nodisplay', '-nosplash', '-r']
-        ks_command = ' '.join(ks_command)
+        ks_command = ["matlab", "-nodisplay", "-nosplash", "-r"]
+        ks_command = " ".join(ks_command)
         ks_command += ' "'
         ks_command += matlab_command
         ks_command += '"'
 
         return ks_command
 
-class Kilosort4():
-    """ Kilosort caller functions """
 
-    #This library directory
-    #ks_directory = pathlib.Path(config.sorters_dir, config.sorters_names['kilosort4']).as_posix()
+class Kilosort4:
+    """Kilosort caller functions"""
+
+    # This library directory
+    # ks_directory = pathlib.Path(config.sorters_dir, config.sorters_names['kilosort4']).as_posix()
 
     @staticmethod
-    def run_Kilosort4(raw_directory, processed_directory, process_parameter_filename, chanmap_filename):
-        """ Function that calls Kilosort
+    def run_Kilosort4(
+        raw_directory, processed_directory, process_parameter_filename, chanmap_filename
+    ):
+        """Function that calls Kilosort
 
-            Args:
-                raw_directory               (str):   Directory where raw (or preprocessed) data is located
-                processed_directory         (str):   Directory where processed data will be stored
-                process_parameter_filename  (dict):  Filename of json with sorting parameters
+        Args:
+            raw_directory               (str):   Directory where raw (or preprocessed) data is located
+            processed_directory         (str):   Directory where processed data will be stored
+            process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        import kilosort
         import importlib.metadata
+
+        import kilosort
 
         # Get the version of the package kilosort
         package_name = "kilosort"
         version = importlib.metadata.version(package_name)
 
-        with open(process_parameter_filename, 'r') as process_param_file:
+        with open(process_parameter_filename) as process_param_file:
             settings = json.load(process_param_file)
 
         # ( path to drive if mounted: /content/drive/MyDrive/ )
-        settings['data_dir'] = raw_directory
+        settings["data_dir"] = raw_directory
 
         print(f"Kilosort4 version {version}")
         print(f"Kilosort4 location {kilosort.__path__}")
-        print('settings kilosort4 here .......', settings)
+        print("settings kilosort4 here .......", settings)
 
-        kilosort.run_kilosort(settings=settings, data_dir=raw_directory, results_dir=processed_directory, probe_name=chanmap_filename, save_preprocessed_copy=True)
-
+        kilosort.run_kilosort(
+            settings=settings,
+            data_dir=raw_directory,
+            results_dir=processed_directory,
+            probe_name=chanmap_filename,
+            save_preprocessed_copy=True,
+        )
 
 
 def params_file_for_different_os(kilosort_output_dir):
 
-    linux_path = '/mnt/cup/braininit'
-    windows_path = '//cup.pni.princeton.edu/braininit'
-    mac_path = '/Volumes/braininit'
+    linux_path = "/mnt/cup/braininit"
+    windows_path = "//cup.pni.princeton.edu/braininit"
+    mac_path = "/Volumes/braininit"
 
     if kilosort_output_dir.is_dir():
-        params_file = pathlib.Path(kilosort_output_dir,'params.py')
+        params_file = pathlib.Path(kilosort_output_dir, "params.py")
         if params_file.is_file():
-            
-            with open(params_file.as_posix(), "r") as file:
+            with open(params_file.as_posix()) as file:
                 params_text = file.read()
-            
+
             try:
-                windows_params = params_text.replace(linux_path,windows_path)
-                windows_param_file = pathlib.Path(kilosort_output_dir,'win_params.py')
+                windows_params = params_text.replace(linux_path, windows_path)
+                windows_param_file = pathlib.Path(kilosort_output_dir, "win_params.py")
                 with open(windows_param_file, "w") as file:
                     file.write(windows_params)
 
-                mac_params = params_text.replace(linux_path,mac_path)
-                mac_param_file = pathlib.Path(kilosort_output_dir,'mac_params.py')
+                mac_params = params_text.replace(linux_path, mac_path)
+                mac_param_file = pathlib.Path(kilosort_output_dir, "mac_params.py")
                 with open(mac_param_file, "w") as file:
                     file.write(mac_params)
             except Exception as e:
