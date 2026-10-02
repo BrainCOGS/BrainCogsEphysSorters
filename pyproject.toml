@@ -36,3 +36,43 @@ include = [
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+
+[tool.uv]
+# Supply-chain quarantine: ignore anything published in the last 7 days when
+# resolving. A compromised release is usually caught and yanked within days, so
+# waiting a week costs little and skips the window when a malicious version is
+# most likely to still be up. uv re-evaluates this relative value on every
+# resolution, so the window rolls forward on its own. "7 days" is the documented
+# friendly-duration form (ISO 8601 "P7D" is equivalent).
+#
+# Consequence to expect: immediately after an upstream release, `uv lock` will
+# decline to pick it up until it is a week old. That is the feature working. To
+# take a fresh release deliberately, run
+#   uv lock --exclude-newer <a timestamp after that upload>
+# or add a scoped exemption via `exclude-newer-package`.
+exclude-newer = "7 days"
+
+# `uv audit` is still gated behind a preview flag. Declaring it here means the
+# command runs without `--preview-features audit-command` on the command line.
+preview-features = ["audit-command"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0",
+]
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+# The smoke tests only need the standard library, so CI can run them without
+# installing the (very large) GPU/spike-sorting dependency tree. Importing the
+# package from the repo root keeps that working.
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py313"
+# Vendored third-party code; see .pre-commit-config.yaml.
+extend-exclude = ["sorters", "preprocess_libs"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
