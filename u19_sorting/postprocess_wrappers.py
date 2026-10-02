@@ -1,7 +1,7 @@
 
 import pathlib
-import json
 import subprocess
+
 import u19_sorting.config as config
 
 
@@ -14,7 +14,7 @@ def post_process_main(raw_data_directory, processed_data_directory, sorter_proce
 
 
 
-class ibl_atlas_post_processing():
+class ibl_atlas_post_processing:
 
     #This library directory
     cat_gt_directory = pathlib.Path(config.preprocess_libs_dir, "CatGT-linux")

@@ -1,11 +1,11 @@
 
-import re
+import glob
+import json
 import os
 import pathlib
-import subprocess
-import json
-import glob
+import re
 import shutil
+import subprocess
 
 import u19_sorting.config as config
 import u19_sorting.utils as utils
@@ -14,7 +14,7 @@ import u19_sorting.utils as utils
 def preprocess_main(recording_process_id, raw_data_directory, processed_data_directory):
 
     preprocess_parameter_filename   = config.preprocess_parameter_file.format(recording_process_id)
-    with open(preprocess_parameter_filename, 'r') as preprocess_param_file:
+    with open(preprocess_parameter_filename) as preprocess_param_file:
         preprocess_parameters = json.load(preprocess_param_file)
 
     #Create path structure if not in place
@@ -48,7 +48,7 @@ def preprocess_tool_params(recording_process_id, tool_key):
     if not pathlib.Path(preprocess_parameter_filename).is_file():
         return None
 
-    with open(preprocess_parameter_filename, 'r') as preprocess_param_file:
+    with open(preprocess_parameter_filename) as preprocess_param_file:
         preprocess_parameters = json.load(preprocess_param_file)
 
     tool_name = config.preproc_tools[tool_key]
@@ -70,7 +70,7 @@ def post_process_partial_results(recording_process_id, raw_data_directory, proce
             shutil.rmtree(this_tool_output_dir)
 
 
-class cat_gt():
+class cat_gt:
 
     #This library directory
     cat_gt_directory = pathlib.Path(config.preprocess_libs_dir, "CatGT-linux")
@@ -122,7 +122,7 @@ class cat_gt():
 
         cat_gt_command = []
         #cat_gt_command.append("sh")
-        cat_gt_command.append((pathlib.Path(cat_gt.cat_gt_directory, "runit.sh").as_posix()))
+        cat_gt_command.append(pathlib.Path(cat_gt.cat_gt_directory, "runit.sh").as_posix())
 
         for key, value in cat_gt_params.items():
             if key == "extras":
@@ -172,8 +172,8 @@ class cat_gt():
     def cat_gt_postprocess_directory(processed_data_directory, cat_gt_output_dir):
 
         #Find catgt head directory in processed data dir
-        catgt_dir = str()
-        old_catgt_dir = str()
+        catgt_dir = ''
+        old_catgt_dir = ''
         path_process_dir = pathlib.Path(processed_data_directory)
 
         print('path_process_dir', path_process_dir)
@@ -220,7 +220,7 @@ class cat_gt():
             return 0
 
 
-class dredge():
+class dredge:
     """ DREDge motion / drift correction via SpikeInterface.
 
         Runs after CatGT and before Kilosort. Reads the SpikeGLX ap.bin/ap.meta pair
@@ -252,9 +252,10 @@ class dredge():
 
         # Import SpikeInterface / torch lazily so catgt-only and KS2/KS3 runs never pay for it.
         import shutil
+
         import spikeinterface.full as si
-        from spikeinterface.preprocessing.motion import correct_motion
         import torch
+        from spikeinterface.preprocessing.motion import correct_motion
 
         raw_data_directory = pathlib.Path(raw_data_directory)
         dredge_output_dir.mkdir(parents=True, exist_ok=True)

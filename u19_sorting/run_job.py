@@ -1,5 +1,3 @@
-import os
-import sys
 
 # script that is called by the slurm engine, and performs the computation.
 '''

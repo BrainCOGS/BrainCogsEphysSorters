@@ -1,9 +1,9 @@
 
 
-import pathlib
-import os
-import subprocess
 import json
+import pathlib
+import subprocess
+
 import u19_sorting.config as config
 import u19_sorting.preprocess_wrappers as pw
 from u19_sorting.utils import write_file
@@ -21,7 +21,7 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
 
     # Get param file
     process_parameters_filename = config.process_parameter_file.format(recording_process_id)
-    with open(process_parameters_filename, 'r') as process_param_file:
+    with open(process_parameters_filename) as process_param_file:
         process_parameters = json.load(process_param_file)
 
     # Get chanmap file
@@ -43,7 +43,7 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
     sorter_processed_directory = pathlib.Path(processed_directory, process_parameters['clustering_method']+'_output')
     pathlib.Path(sorter_processed_directory).mkdir(parents=True, exist_ok=True)
 
-    l = process_parameters.pop("clustering_method")
+    l = process_parameters.pop("clustering_method")  # noqa: E741, F841  (pop() mutates the dict)
     params_text = json.dumps(process_parameters)
     print('new params')
     print(params_text)
@@ -91,7 +91,7 @@ def disable_internal_drift(process_parameters, sorter):
     return process_parameters
 
 
-class Kilosort2():
+class Kilosort2:
     """ Kilosort2 caller functions """
 
     #This library directory
@@ -109,7 +109,7 @@ class Kilosort2():
 
         ks2_command = Kilosort2.create_Kilosort2_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
         print('ks2_command .....', ks2_command)
-        p = subprocess.run(ks2_command, universal_newlines=True, shell=True, capture_output=True)
+        p = subprocess.run(ks2_command, text=True, shell=True, capture_output=True)
 
         print('stderr here', p.stderr)
         print('stdout', p.stdout)
@@ -166,7 +166,7 @@ class Kilosort2():
         return ks2_command
 
 
-class Kilosort3():
+class Kilosort3:
     """ Kilosort caller functions """
 
     #This library directory
@@ -185,7 +185,7 @@ class Kilosort3():
         ks_command = Kilosort3.create_Kilosort3_command(raw_directory, processed_directory, process_parameter_filename, chanmap_filename)
         print('ks_command .....', ks_command)
         print('kilosort3 here .............................')
-        p = subprocess.run(ks_command, universal_newlines=True, shell=True, capture_output=True)
+        p = subprocess.run(ks_command, text=True, shell=True, capture_output=True)
 
         print('stderr here', p.stderr)
         print('stdout', p.stdout)
@@ -219,7 +219,7 @@ class Kilosort3():
 
         return ks_command
 
-class Kilosort4():
+class Kilosort4:
     """ Kilosort caller functions """
 
     #This library directory
@@ -235,14 +235,15 @@ class Kilosort4():
                 process_parameter_filename  (dict):  Filename of json with sorting parameters
         """
 
-        import kilosort
         import importlib.metadata
+
+        import kilosort
 
         # Get the version of the package kilosort
         package_name = "kilosort"
         version = importlib.metadata.version(package_name)
 
-        with open(process_parameter_filename, 'r') as process_param_file:
+        with open(process_parameter_filename) as process_param_file:
             settings = json.load(process_param_file)
 
         # ( path to drive if mounted: /content/drive/MyDrive/ )
@@ -266,7 +267,7 @@ def params_file_for_different_os(kilosort_output_dir):
         params_file = pathlib.Path(kilosort_output_dir,'params.py')
         if params_file.is_file():
             
-            with open(params_file.as_posix(), "r") as file:
+            with open(params_file.as_posix()) as file:
                 params_text = file.read()
             
             try:

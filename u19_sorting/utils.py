@@ -1,6 +1,8 @@
 
-import os, shutil, sys 
+import os
+import shutil
 import subprocess
+import sys
 
 
 def move_to_root_folder(root_path, cur_path):

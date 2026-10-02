@@ -24,10 +24,10 @@ import numpy as np
 
 sys.path.insert(0, pathlib.Path(__file__).resolve().parents[1].as_posix())
 
+import ibllib
+import probeinterface
 import spikeinterface.full as si
 from spikeinterface.generation.drifting_generator import generate_drifting_recording
-import probeinterface
-import ibllib
 
 import u19_sorting.preprocess_wrappers as pw
 
