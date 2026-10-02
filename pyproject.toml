@@ -91,4 +91,21 @@ extend-select = [
     "UP",   # pyupgrade
     "C4",   # flake8-comprehensions
 ]
-ignore = ["N815", "A002", "N806"]  # mixedCase class attrs, arg shadows builtin, non-lowercase local var
+ignore = [
+    "N815",   # mixedCase class attrs
+    "A002",   # argument shadows builtin
+    "N806",   # non-lowercase local variable
+    "E501",   # long lines: ruff format owns wrapping; remaining ones are strings/comments (sbatch examples)
+    "N801",   # lowercase class names (cat_gt, dredge, ...) are public API used across modules; not renaming
+    "N802",   # run_Kilosort2/3/4 etc. are public API used across modules; not renaming
+    "PLW1510",  # subprocess.run without check: callers inspect returncode/stderr themselves
+    "TRY002", # bare Exception in the job scripts; changing exception types alters behavior
+    "RUF059", # unused unpacked stdout/stderr from communicate(); harmless
+    "C408",   # dict(...) calls read fine for keyword-style parameter dicts
+]
+
+[tool.ruff.lint.per-file-ignores]
+"main_script.py" = ["SIM112"]  # env var names are set lowercase by the slurm --export
+"u19_sorting/config.py" = ["SIM108"]  # explicit if/else kept for readability
+"u19_sorting/preprocess_wrappers.py" = ["A001"]  # local named `dir`; renaming is not worth the churn
+"u19_sorting/sorter_wrappers.py" = ["BLE001"]  # broad except deliberately logs and continues
