@@ -1,0 +1,88 @@
+# Dependabot configuration.
+#
+# Sibling configs (keep in sync when changing policy):
+#   BrainCOGS/U19-pipeline-python, BrainCOGS/tech_calendar_streamlit,
+#   BrainCOGS/WaterPubsGUI, BrainCOGS/U19-Data-Viewer
+#
+# No `docker` entry: this repo has no Dockerfile.
+#
+# Every ecosystem has a 7-day cooldown so a freshly published (possibly
+# compromised) release is not proposed until it has had a week to be caught.
+# Security updates ignore the cooldown by design.
+
+version: 2
+
+updates:
+  #
+  # GitHub Actions
+  #
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    cooldown:
+      default-days: 7
+
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+
+    open-pull-requests-limit: 5
+
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+    commit-message:
+      prefix: "ci"
+
+    rebase-strategy: "auto"
+
+    # A group without `applies-to` only batches scheduled version updates.
+    # Security updates are grouped separately, so declare both or the
+    # security fixes keep arriving as one PR per package.
+    groups:
+      github-actions:
+        applies-to: "version-updates"
+        patterns:
+          - "*"
+      github-actions-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  #
+  # Python / uv
+  #
+  - package-ecosystem: "uv"
+    directory: "/"
+    cooldown:
+      default-days: 7
+
+    schedule:
+      interval: "monthly"
+      day: "wednesday"
+      time: "06:00"
+      timezone: "UTC"
+
+    open-pull-requests-limit: 5
+
+    labels:
+      - "dependencies"
+
+    commit-message:
+      prefix: "deps"
+
+    rebase-strategy: "auto"
+
+    # See the github-actions entry above: version and security updates are
+    # grouped independently, so both need a group.
+    groups:
+      python:
+        applies-to: "version-updates"
+        patterns:
+          - "*"
+      python-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
