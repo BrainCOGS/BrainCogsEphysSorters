@@ -3,7 +3,7 @@
 % Further documentation on channel Maps + config is in the Readme.md
 
 % Test 1 on NPX2
- 
+
 ksdir = 'C:\Users\ms81\Desktop\Kilosort\';
 phydir = 'C:\Users\ms81\Desktop\npy-matlab';
 data = 'D:\NPX_DATA\manuel\tmp\TowersTask_g0_imec2';
@@ -19,8 +19,8 @@ sig = 20; % spatial smoothness function for regression.
 
 kilosortbatch(ksdir, phydir, data, tmp, config, chanmap, numchans, start, stop, sig, highpass, blocks)
 
-% Test 2 on NPX2 
-  
+% Test 2 on NPX2
+
 ksdir = 'C:\Users\ms81\Desktop\Kilosort\';
 phydir = 'C:\Users\ms81\Desktop\npy-matlab';
 data = 'D:\NPX_DATA\manuel\tmp\tmp_M012\imec0_catgt_2021-12-10_g0';

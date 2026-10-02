@@ -1,0 +1,47 @@
+# Vendored third-party code and prebuilt binaries (MATLAB sorters, CatGT and its
+# bundled shared libraries) are not ours to reformat, so no hook touches them.
+exclude: ^(sorters|preprocess_libs)/
+
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: "v6.0.0"
+  hooks:
+    - id: check-added-large-files
+    - id: check-case-conflict
+    - id: check-merge-conflict
+    - id: check-symlinks
+    - id: check-toml
+    - id: check-yaml
+    - id: debug-statements
+    - id: end-of-file-fixer
+    - id: mixed-line-ending
+    - id: trailing-whitespace
+
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: "v0.16.10"
+  hooks:
+    - id: ruff-check
+      types_or: [python, pyi]
+      args: ["--fix", "--show-fixes"]
+    - id: ruff-format
+      types_or: [python, pyi]
+
+- repo: https://github.com/gitleaks/gitleaks
+  rev: v8.30.1
+  hooks:
+    - id: gitleaks
+
+- repo: https://github.com/zizmorcore/zizmor-pre-commit
+  rev: v1.30.1
+  hooks:
+    - id: zizmor
+
+- repo: https://github.com/astral-sh/uv-pre-commit
+  rev: 0.12.22
+  hooks:
+    - id: uv-lock
+
+- repo: https://github.com/abravalheri/validate-pyproject
+  rev: "0.26"
+  hooks:
+    - id: validate-pyproject

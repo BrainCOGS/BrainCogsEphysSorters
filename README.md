@@ -1,6 +1,19 @@
 # BrainCogsEphysSorters
 Compilation of electrophysiology sorters and preprocessing tools supported in the U19 Ephys Pipeline
 
+## Development
+
+```
+uv sync                  # full environment (large: pulls torch with CUDA wheels)
+uv tool install prek     # or: pip install pre-commit
+prek install             # run the hooks on every commit
+prek run --all-files
+uv run pytest
+```
+
+CI runs the tests with only the `dev` dependency group (`uv sync --only-group dev`),
+since the smoke tests need no GPU or sorting libraries.
+
 ## User documentation
 
 ### What to run to test the code:
@@ -20,7 +33,7 @@ To test code for a new ephys session:
   - recording_process_id     =y (Change the number to match the parameter file name modification
   - raw_data_directory       = Relative directory to the ephys session probe ```(netID)/subject_fullname/date/.../imec(z)```
   - processed_data_directory = Same as raw_data_directory but include recording_process_id_y (where y is the number from the parameter file)
- 
+
 Logs will be written:
 
 - for Kilosort:
@@ -157,7 +170,7 @@ chmod +x ./install.sh
 
 1. User config files (channel maps and sorting config files) should be deposited in `user_config_files`.
 
-1. The two example channel maps `chanMap_npx1_staggered.mat` and `chanMap_npx2_hStripe_bottom2.mat` were written for staggered Neuropixel 1.0 probes, and the bottom horizontal strip of a 4-shank Neuropixel 2.0 probe. 
+1. The two example channel maps `chanMap_npx1_staggered.mat` and `chanMap_npx2_hStripe_bottom2.mat` were written for staggered Neuropixel 1.0 probes, and the bottom horizontal strip of a 4-shank Neuropixel 2.0 probe.
 
 1. The example config file `config_manuel.m` is adjusted and mildly optimized from the file `\eMouse_drift\config_eMouse_drift_KS2.m`, which is part of the kilosort repository.
 

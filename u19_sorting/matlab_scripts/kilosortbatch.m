@@ -35,11 +35,11 @@ function kilosortbatch(parameter_file, raw_directory, processed_directory, chann
     addpath(genpath(npy_matlab_dir))
 
     if nargin <= 3
-        channel_map_file = fullfile(kilosort2_dir, 'configFiles' ,'neuropixPhase3B1_kilosortChanMap.mat'); 
+        channel_map_file = fullfile(kilosort2_dir, 'configFiles' ,'neuropixPhase3B1_kilosortChanMap.mat');
     end
 
     if nargin <= 4
-        dir_pattern = '*.ap.bin'; 
+        dir_pattern = '*.ap.bin';
     end
 
     % Silly CUDA 9 Error workaround (only happens on Turing and above cards)
@@ -56,7 +56,7 @@ function kilosortbatch(parameter_file, raw_directory, processed_directory, chann
     catch ME
     end
 
-    % Actual program here.    
+    % Actual program here.
     % Set up config.
     [ops, success] = loadJSONfile(parameter_file);
     % trange cannot be inf
@@ -66,7 +66,7 @@ function kilosortbatch(parameter_file, raw_directory, processed_directory, chann
 
     ops.fproc = fullfile(processed_directory, 'temp_wh.dat');
     ops.chanMap = channel_map_file;
-    
+
     % Run Kilosort
     fprintf('Looking for data inside %s \n', raw_directory);
     % fs = dir(fullfile(raw_directory, 'chan*.mat'));
@@ -76,12 +76,12 @@ function kilosortbatch(parameter_file, raw_directory, processed_directory, chann
 
     %ops.sig        = sig;  % spatial smoothness constant for registration
     %ops.fshigh     = fshigh; % high-pass more aggresively
-    %ops.nblocks    = nblocks; % blocks for registration. 0 turns it off, 1 does rigid registration. Replaces "datashift" option. 
+    %ops.nblocks    = nblocks; % blocks for registration. 0 turns it off, 1 does rigid registration. Replaces "datashift" option.
 
     % find the binary file
     fs          = [dir(fullfile(raw_directory, '*.bin')) dir(fullfile(raw_directory, '*.dat'))];
     ops.fbinary = fullfile(raw_directory, fs(1).name);
-    
+
     rez                = preprocessDataSub(ops);
     % Drift correction. ops.nblocks controls registration: 0 turns it off (e.g. when DREDge
     % already corrected motion in preprocessing), >0 enables datashift. datashift2's second arg
@@ -105,12 +105,12 @@ function kilosortbatch(parameter_file, raw_directory, processed_directory, chann
     % save final results as rez2
     fprintf('Saving final results in phy \n')
     rezToPhy2(rez, processed_directory);
-    
+
     % saving figures
     h(1) = figure(1);
     h(2) = figure(2);
     h(3) = figure(3);
     savefig(h, fullfile(processed_directory, 'kilosort_overview.fig'))
     close(h);
-    
+
 end
