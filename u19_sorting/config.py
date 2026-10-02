@@ -1,7 +1,7 @@
 import os
 import pathlib
 
-import u19_sorting.utils as utils
+from u19_sorting import utils
 
 cup_root_dir = "/mnt/cup/braininit/"
 if os.path.isdir(cup_root_dir):

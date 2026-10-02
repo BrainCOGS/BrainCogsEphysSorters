@@ -2,8 +2,8 @@ import json
 import pathlib
 import subprocess
 
-import u19_sorting.config as config
 import u19_sorting.preprocess_wrappers as pw
+from u19_sorting import config
 from u19_sorting.utils import write_file
 
 
@@ -100,9 +100,10 @@ def disable_internal_drift(process_parameters, sorter):
       - KS2 (matlab run_ks2): ops.reorder=0 (KS2 uses batch reordering, not nblocks).
     """
 
-    if sorter == config.sorters_names["kilosort4"]:
-        process_parameters["nblocks"] = 0
-    elif sorter == config.sorters_names["kilosort3"]:
+    if (
+        sorter == config.sorters_names["kilosort4"]
+        or sorter == config.sorters_names["kilosort3"]
+    ):
         process_parameters["nblocks"] = 0
     elif sorter == config.sorters_names["kilosort2"]:
         process_parameters["reorder"] = 0

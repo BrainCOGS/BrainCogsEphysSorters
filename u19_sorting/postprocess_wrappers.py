@@ -1,7 +1,7 @@
 import pathlib
 import subprocess
 
-import u19_sorting.config as config
+from u19_sorting import config
 
 
 def post_process_main(

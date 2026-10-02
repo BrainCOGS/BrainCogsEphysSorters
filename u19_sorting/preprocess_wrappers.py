@@ -6,8 +6,7 @@ import re
 import shutil
 import subprocess
 
-import u19_sorting.config as config
-import u19_sorting.utils as utils
+from u19_sorting import config, utils
 
 
 def preprocess_main(recording_process_id, raw_data_directory, processed_data_directory):
@@ -371,7 +370,9 @@ class dredge:
 
         # Fail here, with a useful message, rather than later in Kilosort's file reader if the
         # channel count we wrote does not match what the meta (and KS4's n_chan_bin) describe.
-        expected = re.search(r"^fileSizeBytes=(\d+)", src_meta.read_text(), flags=re.M)
+        expected = re.search(
+            r"^fileSizeBytes=(\d+)", src_meta.read_text(), flags=re.MULTILINE
+        )
         if expected is not None and corrected_bin.stat().st_size != int(
             expected.group(1)
         ):
@@ -445,7 +446,9 @@ class dredge:
         if not bin_file.is_file():
             return 0
 
-        expected = re.search(r"^fileSizeBytes=(\d+)", meta.read_text(), flags=re.M)
+        expected = re.search(
+            r"^fileSizeBytes=(\d+)", meta.read_text(), flags=re.MULTILINE
+        )
         if expected is None:
             return 1  # meta without size info: fall back to existence check
 
