@@ -351,6 +351,12 @@ class dredge:
         corrected_bin = dredge_output_dir / (stem + ".ap.bin")
         rec_out = si.astype(rec_corr, dtype="int16", round=True)
         if sync_rec is not None:
+            # The sync channel has no probe, and spikeinterface >= 0.105 refuses to aggregate
+            # recordings with and without one. A flat binary carries no probe, so drop it from
+            # the (lazy, local) probe-channel wrapper. Older versions have no remove_probe and
+            # aggregate mixed recordings as they are.
+            if hasattr(rec_out, "remove_probe"):
+                rec_out.remove_probe()
             rec_out = si.aggregate_channels([rec_out, sync_rec])
         print(
             "dredge writing", rec_out.get_num_channels(), "channels ->", corrected_bin
