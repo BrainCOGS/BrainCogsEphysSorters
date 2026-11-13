@@ -1,5 +1,4 @@
 import glob
-import json
 import os
 import pathlib
 import re
@@ -48,30 +47,6 @@ def preprocess_main(
                 print("spikeinterface steps are applied lazily in the sort stage")
 
     return new_raw_data_directory
-
-
-def preprocess_tool_params(recording_process_id, tool_key):
-    """Return the params dict of the given preproc tool (e.g. 'dredge') from this job's
-    preprocess parameter file, or None if the tool is not part of the job.
-
-    Used by the sorter stage to decide whether to disable Kilosort's internal drift
-    correction (so motion is not corrected twice).
-    """
-
-    preprocess_parameter_filename = config.preprocess_parameter_file.format(
-        recording_process_id
-    )
-    if not pathlib.Path(preprocess_parameter_filename).is_file():
-        return None
-
-    with open(preprocess_parameter_filename) as preprocess_param_file:
-        preprocess_parameters = json.load(preprocess_param_file)
-
-    tool_name = config.preproc_tools[tool_key]
-    for this_preparam in preprocess_parameters:
-        if tool_name in this_preparam:
-            return this_preparam[tool_name] or {}
-    return None
 
 
 def post_process_partial_results(
