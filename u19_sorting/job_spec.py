@@ -16,8 +16,10 @@ Sorting paramsets come in two shapes:
   legacy      no `sorter_params` key. Everything except `clustering_method` (and the
               optional `sorter_version`) is passed to the sorter exactly as before.
   namespaced  `sorter_params` is present. Only `sorter_version`, `sorter_params`,
-              `si_params` and `postprocessing` are allowed next to `clustering_method`,
-              and only `sorter_params` reaches the sorter. Runs through SpikeInterface.
+              `si_params`, `preprocessing` and `postprocessing` are allowed next to
+              `clustering_method`, and only `sorter_params` reaches the sorter. Runs
+              through SpikeInterface. With `preprocessing` (a step list), this one
+              paramset describes the whole run.
 
 This module only needs the standard library, so it can be tested without the sorting
 stack installed.
@@ -74,6 +76,7 @@ _NAMESPACED_KEYS = {
     "sorter_version",
     "sorter_params",
     "si_params",
+    "preprocessing",
     "postprocessing",
 }
 _POSTPROCESSING_KEYS = {"extensions", "export", "job_kwargs"}
@@ -125,6 +128,9 @@ class SortingSpec:
     disable_drift: bool = False
     lazy_steps: list = dataclasses.field(default_factory=list)
     lazy_job_kwargs: dict = dataclasses.field(default_factory=dict)
+    # A namespaced paramset's own `preprocessing` step list (normalized), or None. It is
+    # what lets one paramset describe the whole run: read, preprocess, sort, postprocess.
+    inline_preprocessing: dict | None = None
 
 
 @dataclasses.dataclass
@@ -339,6 +345,15 @@ def normalize_sorting(raw):
     if overlap:
         raise JobSpecError(f"keys in both sorter_params and si_params: {overlap}")
 
+    inline_preprocessing = None
+    if raw.get("preprocessing") is not None:
+        if _is_dict(raw["preprocessing"]) and "materialize" in raw["preprocessing"]:
+            raise JobSpecError(
+                "preprocessing in a clustering paramset is always applied lazily; "
+                "'materialize' only applies to a spikeinterface preprocess step"
+            )
+        inline_preprocessing = normalize_spikeinterface_params(raw["preprocessing"])
+
     return (
         SortingSpec(
             clustering_method=clustering_method,
@@ -346,21 +361,30 @@ def normalize_sorting(raw):
             sorter_version=sorter_version,
             sorter_params=sorter_params,
             si_params=si_params,
+            inline_preprocessing=inline_preprocessing,
         ),
         normalize_postprocessing(raw.get("postprocessing")),
     )
 
 
-def motion_disables_sorter_drift(preprocessing):
-    """True if a motion-correction step ran and did not ask to keep the sorter's own."""
+def _has_motion_step(si_params):
+    return any(step["name"] in MOTION_STEPS for step in si_params["steps"])
+
+
+def motion_disables_sorter_drift(preprocessing, inline_preprocessing=None):
+    """True if a motion-correction step ran and did not ask to keep the sorter's own.
+
+    The first motion step decides: the preprocess steps in order, then the clustering
+    paramset's own `preprocessing` list.
+    """
 
     for step in preprocessing:
         if step.method == DREDGE:
             return bool(step.params.get("disable_sorter_drift", True))
-        if step.method == SPIKEINTERFACE and any(
-            s["name"] in MOTION_STEPS for s in step.params["steps"]
-        ):
+        if step.method == SPIKEINTERFACE and _has_motion_step(step.params):
             return bool(step.params["disable_sorter_drift"])
+    if inline_preprocessing is not None and _has_motion_step(inline_preprocessing):
+        return bool(inline_preprocessing["disable_sorter_drift"])
     return False
 
 
@@ -392,7 +416,9 @@ def build_job_spec(preprocess_parameters, process_parameters):
 
     preprocessing = normalize_preprocessing(preprocess_parameters)
     sorting, postprocessing = normalize_sorting(process_parameters)
-    sorting.disable_drift = motion_disables_sorter_drift(preprocessing)
+    sorting.disable_drift = motion_disables_sorter_drift(
+        preprocessing, sorting.inline_preprocessing
+    )
 
     for index, step in enumerate(preprocessing):
         if step.method != SPIKEINTERFACE:
@@ -404,6 +430,14 @@ def build_job_spec(preprocess_parameters, process_parameters):
             sorting.lazy_steps = steps
             sorting.lazy_job_kwargs = step.params["job_kwargs"]
         step.materialize = bool(steps) and not lazy
+
+    # The paramset's own step list runs after whatever the preprocess file left lazy.
+    if sorting.inline_preprocessing is not None:
+        sorting.lazy_steps = sorting.lazy_steps + sorting.inline_preprocessing["steps"]
+        sorting.lazy_job_kwargs = {
+            **sorting.lazy_job_kwargs,
+            **sorting.inline_preprocessing["job_kwargs"],
+        }
 
     seen = {}
     for step in preprocessing:

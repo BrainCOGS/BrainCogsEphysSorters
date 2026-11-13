@@ -161,10 +161,13 @@ def test_namespaced_job_with_a_non_kilosort_sorter_lands_in_the_element_layout(
     spikeglx_run, job
 ):
     raw, _ = spikeglx_run
+    # One paramset for the whole run: the preprocess file is production's "Nothing" step
+    # and the clustering paramset carries its own step list.
     processed = job(
-        [{"spikeinterface": STEPS}],
+        [{"Nothing": {}}],
         {
             "clustering_method": "simple",
+            "preprocessing": STEPS,
             "sorter_version": None,
             # kmeans: the default clusterer needs hdbscan, which is not a dependency here
             "sorter_params": {
@@ -182,7 +185,7 @@ def test_namespaced_job_with_a_non_kilosort_sorter_lands_in_the_element_layout(
     )
     sorter_input, output = run_job(raw, processed)
 
-    # the trailing step list was applied lazily: no preprocessed copy was written
+    # the step list was applied lazily: no preprocessed copy was written
     assert sorter_input == raw
     assert not (processed / "spikeinterface_output").exists()
     assert output == processed / "simple_output"

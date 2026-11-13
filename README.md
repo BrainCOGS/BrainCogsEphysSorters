@@ -242,6 +242,33 @@ that argument belongs to `highpass_spatial_filter`, where 60 is the default):
 ]}
 ```
 
+#### The whole run through SpikeInterface, from one paramset
+
+A namespaced clustering paramset (next section) can carry its own `preprocessing` step list. With the
+`Nothing` preprocess method selected, that single paramset then describes the entire run, and all of it goes
+through SpikeInterface: the raw SpikeGLX run is read, the steps are applied lazily, the sorter (Kilosort
+included) is run with `run_sorter`, and the postprocessing follows. Nothing is written between the stages.
+
+```
+{
+  "clustering_method": "kilosort4",
+  "sorter_version": "kilosort4@4.1.7",
+  "preprocessing": {
+    "steps": [
+      {"name": "phase_shift", "kwargs": {}},
+      {"name": "highpass_filter", "kwargs": {"freq_min": 300}},
+      {"name": "common_reference", "kwargs": {"operator": "median", "reference": "global"}}
+    ]
+  },
+  "sorter_params": {"Th_universal": 9},
+  "si_params": {"save_preprocessed_copy": true, "n_jobs": 8},
+  "postprocessing": {"extensions": {"quality_metrics": {}}}
+}
+```
+
+`preprocessing` takes the same keys as the `spikeinterface` preprocessing step, except `materialize` (it is
+always lazy). If the preprocess file also ends with a lazy `spikeinterface` step, that one runs first.
+
 #### Legacy and namespaced clustering paramsets
 
 A process parameter file without a `sorter_params` key is a legacy paramset: every key except
@@ -279,6 +306,8 @@ image. The probe comes from the SpikeGLX `.meta`, not from the chanmap file.
   `kilosort3`, `kilosort4`, `mountainsort5`, `spykingcircus2`, `tridesclous2`, `lupin`, `simple`).
 - **sorter_params:** the sorter's own settings. For Kilosort 4 only Kilosort settings are accepted;
   `n_chan_bin` and `fs` come from the recording.
+- **preprocessing:** (optional) a SpikeInterface step list applied lazily before the sort; see "The whole run
+  through SpikeInterface, from one paramset" above.
 - **si_params:** SpikeInterface's options for the sorter wrapper (for Kilosort 4: `do_correction`,
   `skip_kilosort_preprocessing`, `save_preprocessed_copy`, `delete_recording_dat`, ...) and job kwargs
   (`n_jobs`, ...). For the other sorters SpikeInterface does not separate the two, so either namespace takes

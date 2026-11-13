@@ -410,3 +410,77 @@ def test_load_job_spec_rejects_nan_file(param_files, tmp_path):
     (tmp_path / "process_paramset_7.json").write_text("NaN")
     with pytest.raises(JobSpecError):
         job_spec.load_job_spec(7)
+
+
+# ------------------------------------------- one paramset for the whole SpikeInterface run
+
+
+def test_clustering_paramset_can_carry_its_own_preprocessing():
+    """One row describes the run: preprocess, sort, postprocess, all through SpikeInterface."""
+    spec = build([{"Nothing": CATGT}], {**NEW_KS4, "preprocessing": SI_STEPS})
+    assert spec.preprocessing == []  # nothing is written between the stages
+    assert [s["name"] for s in spec.sorting.lazy_steps] == [
+        "phase_shift",
+        "highpass_filter",
+        "common_reference",
+    ]
+    assert spec.sorting.disable_drift is False
+
+
+def test_inline_preprocessing_runs_after_a_lazy_preprocess_step():
+    first = {"steps": [{"name": "phase_shift"}], "job_kwargs": {"n_jobs": 2}}
+    inline = {"steps": [{"name": "whiten"}], "job_kwargs": {"chunk_duration": "1s"}}
+    spec = build([{"spikeinterface": first}], {**NEW_KS4, "preprocessing": inline})
+    assert [s["name"] for s in spec.sorting.lazy_steps] == ["phase_shift", "whiten"]
+    assert spec.sorting.lazy_job_kwargs == {"n_jobs": 2, "chunk_duration": "1s"}
+    assert spec.preprocessing[0].materialize is False
+
+
+def test_inline_preprocessing_follows_written_steps():
+    spec = build([{"catgt": CATGT}], {**NEW_KS4, "preprocessing": SI_STEPS})
+    assert [s.method for s in spec.preprocessing] == ["catgt"]
+    assert len(spec.sorting.lazy_steps) == 3
+
+
+def test_inline_motion_step_turns_off_sorter_drift():
+    inline = {"steps": [{"name": "correct_motion", "kwargs": {}}]}
+    assert build([], {**NEW_KS4, "preprocessing": inline}).sorting.disable_drift is True
+    inline["disable_sorter_drift"] = False
+    assert (
+        build([], {**NEW_KS4, "preprocessing": inline}).sorting.disable_drift is False
+    )
+
+
+def test_earlier_motion_step_decides_over_the_inline_one():
+    inline = {"steps": [{"name": "correct_motion", "kwargs": {}}]}
+    spec = build(
+        [{"dredge": {"disable_sorter_drift": False}}],
+        {**NEW_KS4, "preprocessing": inline},
+    )
+    assert spec.sorting.disable_drift is False
+
+
+@pytest.mark.parametrize(
+    "inline",
+    [
+        [],
+        {"steps": [{"name": "nosuchstep"}]},
+        {"steps": [], "materialize": True},
+        {"stepz": []},
+    ],
+)
+def test_malformed_inline_preprocessing_fails(inline):
+    with pytest.raises(JobSpecError):
+        build([], {**NEW_KS4, "preprocessing": inline})
+
+
+def test_null_inline_preprocessing_is_none():
+    spec = build([], {**NEW_KS4, "preprocessing": None})
+    assert spec.sorting.inline_preprocessing is None
+    assert spec.sorting.lazy_steps == []
+
+
+def test_legacy_paramset_does_not_interpret_preprocessing():
+    spec = build([], {"clustering_method": "kilosort4", "preprocessing": SI_STEPS})
+    assert spec.sorting.sorter_params == {"preprocessing": SI_STEPS}
+    assert spec.sorting.lazy_steps == []
