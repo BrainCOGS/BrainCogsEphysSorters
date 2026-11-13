@@ -1,21 +1,25 @@
 import glob
-import json
 import os
 import pathlib
 import re
 import shutil
 import subprocess
 
-from u19_sorting import config, utils
+from u19_sorting import config, job_spec, si_wrappers, utils
 
 
-def preprocess_main(recording_process_id, raw_data_directory, processed_data_directory):
+def preprocess_main(
+    recording_process_id, raw_data_directory, processed_data_directory, spec=None
+):
+    """Run the job's preprocessing steps in order; returns the directory the sorter reads.
 
-    preprocess_parameter_filename = config.preprocess_parameter_file.format(
-        recording_process_id
-    )
-    with open(preprocess_parameter_filename) as preprocess_param_file:
-        preprocess_parameters = json.load(preprocess_param_file)
+    Each step reads the directory the previous one produced (a SpikeGLX ap.bin + ap.meta)
+    and writes its own `<method>_output`, so catgt, dredge and spikeinterface steps chain in
+    whatever order the step list gives.
+    """
+
+    if spec is None:
+        spec = job_spec.load_job_spec(recording_process_id)
 
     # Create path structure if not in place
     print("processed_data_directory  ........", processed_data_directory)
@@ -23,53 +27,26 @@ def preprocess_main(recording_process_id, raw_data_directory, processed_data_dir
     new_raw_data_directory = raw_data_directory
     print(new_raw_data_directory)
 
-    for this_preparam in preprocess_parameters:
-        print("this_preparam", this_preparam)
-        if config.preproc_tools["catgt"] in this_preparam:
-            catgt_output_dir = pathlib.Path(
-                processed_data_directory, config.preproc_tools["catgt"] + "_output"
-            )
-            # pathlib.Path(catgt_output_dir).mkdir(parents=True, exist_ok=True)
+    for step in spec.preprocessing:
+        print("this_preparam", {step.method: step.params})
+        output_dir = pathlib.Path(processed_data_directory, step.output_name)
+        if step.method == job_spec.CATGT:
             new_raw_data_directory = cat_gt.run_cat_gt(
-                new_raw_data_directory,
-                catgt_output_dir,
-                this_preparam[config.preproc_tools["catgt"]],
+                new_raw_data_directory, output_dir, step.params
             )
-        if config.preproc_tools["dredge"] in this_preparam:
-            dredge_output_dir = pathlib.Path(
-                processed_data_directory, config.preproc_tools["dredge"] + "_output"
-            )
+        elif step.method == job_spec.DREDGE:
             new_raw_data_directory = dredge.run_dredge(
-                new_raw_data_directory,
-                dredge_output_dir,
-                this_preparam[config.preproc_tools["dredge"]],
+                new_raw_data_directory, output_dir, step.params
             )
+        elif step.method == job_spec.SPIKEINTERFACE:
+            if step.materialize:
+                new_raw_data_directory = si_wrappers.spikeinterface_preproc.run(
+                    new_raw_data_directory, output_dir, step.params
+                )
+            elif step.params["steps"]:
+                print("spikeinterface steps are applied lazily in the sort stage")
 
     return new_raw_data_directory
-
-
-def preprocess_tool_params(recording_process_id, tool_key):
-    """Return the params dict of the given preproc tool (e.g. 'dredge') from this job's
-    preprocess parameter file, or None if the tool is not part of the job.
-
-    Used by the sorter stage to decide whether to disable Kilosort's internal drift
-    correction (so motion is not corrected twice).
-    """
-
-    preprocess_parameter_filename = config.preprocess_parameter_file.format(
-        recording_process_id
-    )
-    if not pathlib.Path(preprocess_parameter_filename).is_file():
-        return None
-
-    with open(preprocess_parameter_filename) as preprocess_param_file:
-        preprocess_parameters = json.load(preprocess_param_file)
-
-    tool_name = config.preproc_tools[tool_key]
-    for this_preparam in preprocess_parameters:
-        if tool_name in this_preparam:
-            return this_preparam[tool_name] or {}
-    return None
 
 
 def post_process_partial_results(
@@ -81,15 +58,20 @@ def post_process_partial_results(
     print("remove post processing partial results", processed_data_directory)
 
     for this_preproc_tool in config.preproc_tools_delete_post:
-        this_tool_output_dir = pathlib.Path(
-            processed_data_directory, this_preproc_tool + "_output"
+        # `<tool>_output`, plus `<tool>_output_2`, ... when a job repeats a method
+        first = pathlib.Path(processed_data_directory, this_preproc_tool + "_output")
+        repeats = sorted(
+            pathlib.Path(processed_data_directory).glob(
+                this_preproc_tool + "_output_[0-9]*"
+            )
         )
-        print(
-            "remove post processing partial results this_tool_output_dir ",
-            this_tool_output_dir,
-        )
-        if this_tool_output_dir.is_dir():
-            shutil.rmtree(this_tool_output_dir)
+        for this_tool_output_dir in [first, *repeats]:
+            print(
+                "remove post processing partial results this_tool_output_dir ",
+                this_tool_output_dir,
+            )
+            if this_tool_output_dir.is_dir():
+                shutil.rmtree(this_tool_output_dir)
 
 
 class cat_gt:
@@ -274,8 +256,6 @@ class dredge:
             return dredge_output_dir
 
         # Import SpikeInterface / torch lazily so catgt-only and KS2/KS3 runs never pay for it.
-        import shutil
-
         import spikeinterface.full as si
         import torch
         from spikeinterface.preprocessing.motion import correct_motion
@@ -288,7 +268,6 @@ class dredge:
         if not meta_files:
             raise ValueError("No *ap.meta found in " + raw_data_directory.as_posix())
         src_meta = meta_files[0]
-        stem = src_meta.name[: -len(".ap.meta")]
 
         # Probe index for the SpikeGLX stream id (imec<N>.ap), reusing catgt's regex idiom.
         probe_match = re.search(r"imec([0-9]+)", src_meta.name)
@@ -345,48 +324,11 @@ class dredge:
         )
         rec_corr, motion_info = motion_result  # type: ignore[misc]  # union return; runtime is a 2-tuple
 
-        # Materialize a SpikeGLX-style ap.bin. write_binary_recording (not save()) writes a
-        # single flat binary; KS4's find_binary globs *.bin and prefers the 'ap.bin' tag.
-        # Round (not truncate) the interpolated float traces back to the int16 the meta describes.
-        corrected_bin = dredge_output_dir / (stem + ".ap.bin")
-        rec_out = si.astype(rec_corr, dtype="int16", round=True)
-        if sync_rec is not None:
-            rec_out = si.aggregate_channels([rec_out, sync_rec])
-        print(
-            "dredge writing", rec_out.get_num_channels(), "channels ->", corrected_bin
+        # Materialize a SpikeGLX-style ap.bin (+ copied ap.meta) with the sync channel
+        # appended back, and check its size against the meta.
+        si_wrappers.write_spikeglx_copy(
+            rec_corr, sync_rec, src_meta, dredge_output_dir, job_kwargs, "dredge"
         )
-        si.write_binary_recording(
-            rec_out,
-            file_paths=[corrected_bin.as_posix()],
-            dtype="int16",
-            **job_kwargs,
-        )
-
-        # Copy the ap.meta alongside (provenance + lets read_spikeglx re-open on requeue).
-        # Motion interpolation preserves sample count, so the meta stays valid.
-        shutil.copy2(
-            src_meta.as_posix(), (dredge_output_dir / (stem + ".ap.meta")).as_posix()
-        )
-
-        # Fail here, with a useful message, rather than later in Kilosort's file reader if the
-        # channel count we wrote does not match what the meta (and KS4's n_chan_bin) describe.
-        expected = re.search(
-            r"^fileSizeBytes=(\d+)", src_meta.read_text(), flags=re.MULTILINE
-        )
-        if expected is not None and corrected_bin.stat().st_size != int(
-            expected.group(1)
-        ):
-            raise ValueError(
-                "dredge wrote "
-                + str(corrected_bin.stat().st_size)
-                + " bytes ("
-                + str(rec_out.get_num_channels())
-                + " channels) but "
-                + src_meta.name
-                + " expects "
-                + expected.group(1)
-                + " bytes; channel count mismatch"
-            )
 
         # Release GPU memory so the downstream KS4 stage gets the full card.
         del rec_corr, rec, motion_info
@@ -397,73 +339,16 @@ class dredge:
 
     @staticmethod
     def read_sync_channel(raw_data_directory, stream_id, num_probe_channels):
-        """Return a 1-channel recording of the SpikeGLX sync channel (SY0), or None.
+        """Return a 1-channel recording of the SpikeGLX sync channel (SY0), or None."""
 
-        Newer neo exposes it as its own "<stream>-SYNC" stream; older spikeinterface/neo
-        only include it via read_spikeglx(load_sync_channel=True), as the last channel of
-        the probe stream (with no probe attached). Handle both so the output keeps the
-        nSavedChans column count regardless of the installed version.
-        """
-
-        import spikeinterface.full as si
-
-        folder = pathlib.Path(raw_data_directory).as_posix()
-
-        stream_ids = si.get_neo_streams("spikeglx", folder)[1]
-        if stream_id + "-SYNC" in stream_ids:
-            return si.read_spikeglx(folder_path=folder, stream_id=stream_id + "-SYNC")
-
-        try:
-            rec_with_sync = si.read_spikeglx(
-                folder_path=folder, stream_id=stream_id, load_sync_channel=True
-            )
-        except TypeError:
-            return None  # neither API offers a sync channel
-        if rec_with_sync.get_num_channels() != num_probe_channels + 1:
-            return None
-        return rec_with_sync.channel_slice([rec_with_sync.channel_ids[-1]])
+        return si_wrappers.read_sync_channel(
+            raw_data_directory, stream_id, num_probe_channels
+        )
 
     @staticmethod
     def dredge_check_output(dredge_output_dir):
-        """True only if a complete corrected recording is present: an ap.bin next to an ap.meta
-        whose fileSizeBytes matches the ap.bin on disk. Motion interpolation keeps the sample
-        and channel count, so the corrected file must be exactly as large as the source the
-        meta describes. A wrong-sized file (killed job, or an earlier run that dropped the
-        sync channel) is removed so the next run regenerates it instead of feeding it to KS4.
+        """True only if a complete corrected recording is present (see
+        si_wrappers.spikeglx_copy_complete); an incomplete one is removed.
         """
 
-        dredge_output_dir = pathlib.Path(dredge_output_dir)
-        metas = (
-            sorted(dredge_output_dir.glob("*ap.meta"))
-            if dredge_output_dir.is_dir()
-            else []
-        )
-        if not metas:
-            return 0
-
-        meta = metas[0]
-        bin_file = meta.with_name(meta.name[: -len(".ap.meta")] + ".ap.bin")
-        if not bin_file.is_file():
-            return 0
-
-        expected = re.search(
-            r"^fileSizeBytes=(\d+)", meta.read_text(), flags=re.MULTILINE
-        )
-        if expected is None:
-            return 1  # meta without size info: fall back to existence check
-
-        if bin_file.stat().st_size == int(expected.group(1)):
-            return 1
-
-        print(
-            "dredge output",
-            bin_file,
-            "is",
-            bin_file.stat().st_size,
-            "bytes, meta expects",
-            expected.group(1),
-            "-> discarding incomplete output",
-        )
-        bin_file.unlink()
-        meta.unlink()
-        return 0
+        return si_wrappers.spikeglx_copy_complete(dredge_output_dir, "dredge")

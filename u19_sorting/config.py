@@ -57,19 +57,51 @@ sorters_dir = pathlib.Path(repository_dir, "sorters")
 matlab_scripts = pathlib.Path(repository_dir, "u19_sorting", "matlab_scripts")
 
 
+# clustering_method -> name of the sorter class in sorter_wrappers. These are the sorters a
+# legacy (flat) paramset can select; they run exactly as they always have.
 sorters_names = {
     "kilosort4": "Kilosort4",
     "kilosort3": "Kilosort3",
+    "kilosort2_5": "Kilosort2_5",
     "kilosort2": "Kilosort2",
-    "SpikeInterface": "spike_interface",
+}
+
+# clustering_method -> SpikeInterface sorter name, for namespaced paramsets (the ones with
+# a `sorter_params` key, see job_spec.py), which run through SpikeInterface's run_sorter.
+# Sorters that are not Kilosort get their output exported to a phy folder.
+si_sorters = {
+    "kilosort4": "kilosort4",
+    "kilosort3": "kilosort3",
+    "kilosort2_5": "kilosort2_5",
+    "kilosort2": "kilosort2",
+    "mountainsort5": "mountainsort5",
+    "spykingcircus2": "spykingcircus2",
+    "tridesclous2": "tridesclous2",
+    "lupin": "lupin",
+    "simple": "simple",
 }
 
 preproc_tools = {
     "catgt": "catgt",
     "dredge": "dredge",
+    "spikeinterface": "spikeinterface",
 }
 
 preproc_tools_delete_post = [
     "catgt",
     "dredge",
+    "spikeinterface",
 ]
+
+
+# Sorter version allow-list (see sorter_registry.py). Jobs select a key from this file via
+# "sorter_version" in the process params; override the path with U19_SORTER_REGISTRY.
+sorter_registry_file = pathlib.Path(repository_dir, "sorter_registry.json").as_posix()
+
+# Apptainer images for containerized sorters. Built once on a login node (internet) by
+# `python -m u19_sorting.apptainer_cache`; compute nodes only read the .sif files.
+# Override with U19_APPTAINER_SIF_DIR / U19_APPTAINER_CACHEDIR.
+apptainer_sif_dir = "/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif"
+apptainer_cache_dir = (
+    "/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/cache"
+)

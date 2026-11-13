@@ -22,6 +22,7 @@ dependencies = [
     "numpy",
     "pandas",
     "spikeinterface>=0.104.8",
+    "spython",
 ]
 requires-python = ">= 3.13"
 
