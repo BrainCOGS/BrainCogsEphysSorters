@@ -45,7 +45,7 @@ Logs will be written:
 
 Preprocess parameter file is a json file to configure preprocessing steps and select the desired sorter, main parameters are:
 
-- **clustering_method:** (str) Which sorter will be used (Kilosort2, Kilosort, SpikeInterface).
+- **clustering_method:** (str) Which sorter will be used (`kilosort2`, `kilosort3`, `kilosort4`; see [SpikeInterface path](#spikeinterface-path-optional) for the others).
 - **cat_gt:** (dict) All parameters corresponding to catGT preprocessing.
   - **use_cat_gt:** (bool) 0 if cat_gt will not be used, 1 otherwise.
   - **"cat_gt_params"**: (dict) Cat_GT params that are included in command line when it is called
@@ -209,6 +209,38 @@ last preprocessing step of a job with a namespaced clustering paramset (below): 
 An empty step list is never written. Because a written copy is rounded to int16, steps that rescale the traces
 (`whiten`, `zscore`, `scale`, ...) need a scale that survives that (for example `int_scale` for `whiten` and
 `zscore`). Like the CatGT and DREDge outputs, `spikeinterface_output*` folders are deleted at the end of the job.
+
+##### Step lists for CatGT and IBL destriping
+
+SpikeInterface documents how to reproduce both in its preprocessing guide
+([How to implement "IBL destriping" or "SpikeGLX CatGT" in SpikeInterface](https://spikeinterface.readthedocs.io/en/stable/modules/preprocessing.html#how-to-implement-ibl-destriping-or-spikeglx-catgt-in-spikeinterface)).
+As step lists:
+
+CatGT (`phase_shift` is CatGT's `tshift`, the global median reference is `-gblcar`; the high-pass stands in for
+`-apfilter=biquad,2,300,0`, which is not part of SpikeInterface's recipe):
+
+```
+{"steps": [
+  {"name": "phase_shift", "kwargs": {}},
+  {"name": "highpass_filter", "kwargs": {"freq_min": 300}},
+  {"name": "common_reference", "kwargs": {"operator": "median", "reference": "global"}}
+]}
+```
+
+CatGT's `-gfix` (removal of fast, large transients seen on many channels at once) has no counterpart in this
+list.
+
+IBL destriping (the guide passes `n_channel_pad=60` to `highpass_filter`, which spikeinterface 0.105 refuses;
+that argument belongs to `highpass_spatial_filter`, where 60 is the default):
+
+```
+{"steps": [
+  {"name": "highpass_filter", "kwargs": {}},
+  {"name": "phase_shift", "kwargs": {}},
+  {"name": "detect_and_interpolate_bad_channels", "kwargs": {}},
+  {"name": "highpass_spatial_filter", "kwargs": {}}
+]}
+```
 
 #### Legacy and namespaced clustering paramsets
 
