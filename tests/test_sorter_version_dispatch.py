@@ -62,9 +62,7 @@ def job(tmp_path, monkeypatch):
                 dict(sorter_params),
             )
         )
-        out = output_directory / "sorter_output"
-        out.mkdir(parents=True)
-        return out
+        return output_directory
 
     monkeypatch.setattr(
         sw.SpikeInterfaceContainer, "run", staticmethod(fake_container_run)
@@ -172,8 +170,8 @@ def test_container_version_runs_cached_sif(job):
     assert raw == job.raw
     assert output_dir == job.processed / "kilosort3_output"
     assert params == {"detect_threshold": 6}
-    # downstream (IBL, phy params shim) gets the raw Kilosort output folder
-    assert out == job.processed / "kilosort3_output" / "sorter_output"
+    # downstream (U19's element load, IBL, phy params shim) reads <method>_output itself
+    assert out == job.processed / "kilosort3_output"
     prov = provenance(out)
     assert prov["mode"] == "container"
     assert prov["sif_path"] == str(sif.resolve())
@@ -340,7 +338,7 @@ class FakeRecording:
 @pytest.fixture
 def container_run(tmp_path, monkeypatch):
     """Real SpikeInterfaceContainer.run with the recording reader and run_sorter faked."""
-    import spikeinterface.sorters as ss
+    ss = pytest.importorskip("spikeinterface.sorters")
 
     (tmp_path / CONTAINER["sif"]).write_bytes(b"SIF")
     registry = {"kilosort3@0.2.0": sr.parse_entry("kilosort3@0.2.0", CONTAINER)}
@@ -383,6 +381,13 @@ def test_container_deletes_recording_copy_by_default(tmp_path):
     (tmp_path / CONTAINER["sif"]).write_bytes(b"SIF")
     registry = {"kilosort3@0.2.0": sr.parse_entry("kilosort3@0.2.0", CONTAINER)}
     resolved = sr.resolve("kilosort3@0.2.0", registry=registry, sif_dir=tmp_path)
-    assert sw.SpikeInterfaceContainer.run_sorter_kwargs(resolved, tmp_path, {})["delete_recording_dat"] is True
-    kept = sw.SpikeInterfaceContainer.run_sorter_kwargs(resolved, tmp_path, {"delete_recording_dat": False})
+    assert (
+        sw.SpikeInterfaceContainer.run_sorter_kwargs(resolved, tmp_path, {})[
+            "delete_recording_dat"
+        ]
+        is True
+    )
+    kept = sw.SpikeInterfaceContainer.run_sorter_kwargs(
+        resolved, tmp_path, {"delete_recording_dat": False}
+    )
     assert kept["delete_recording_dat"] is False

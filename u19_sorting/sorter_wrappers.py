@@ -1,11 +1,9 @@
 import importlib.metadata
 import json
 import pathlib
-import re
 import subprocess
 
-import u19_sorting.preprocess_wrappers as pw
-from u19_sorting import config, sorter_registry
+from u19_sorting import config, job_spec, si_wrappers, sorter_registry
 from u19_sorting.utils import write_file
 
 # Written next to the sorter output when the job pinned a "sorter_version".
@@ -14,64 +12,122 @@ PROVENANCE_FILENAME = "sorter_provenance.json"
 # Python package whose installed version a native registry entry pins.
 NATIVE_PACKAGES = {"kilosort4": "kilosort"}
 
+# Legacy sorters with a runner of their own in this module (MATLAB or the Kilosort 4
+# package). Any other legacy sorter needs a container sorter_version.
+NATIVE_RUNNERS = {"kilosort2", "kilosort3", "kilosort4"}
 
-def sorter_main(recording_process_id, raw_directory, processed_directory):
+
+def sorter_main(recording_process_id, raw_directory, processed_directory, spec=None):
     """Main function to call appropiate sorter
     Args:
+        recording_process_id        (int):   Job id; names the parameter and chanmap files
         raw_directory               (str):   Directory where raw (or preprocessed) data is located
         processed_directory         (str):   Directory where processed data will be stored
-        preprocess_parameters       (dict):  Dictionary with preprocessing parameters and sorter algorithm selection
-        process_parameters          (dict):  Dictionary with specific sorting parameters
-        process_parameter_filename  (dict):  Filename of json with sorting parameters
+        spec                        (JobSpec): The job spec, if the caller already loaded it
+
+    A legacy (flat) paramset runs exactly as it always has: the native Kilosort 4 call or
+    the MATLAB Kilosort 2/3 scripts, or a pinned container if `sorter_version` names one.
+    A namespaced paramset (one with `sorter_params`) runs through SpikeInterface.
+    Either way the result is `<processed_directory>/<clustering_method>_output`.
     """
 
-    # Get param file
-    process_parameters_filename = config.process_parameter_file.format(
-        recording_process_id
-    )
-    with open(process_parameters_filename) as process_param_file:
-        process_parameters = json.load(process_param_file)
+    if spec is None:
+        spec = job_spec.load_job_spec(recording_process_id, missing_preprocess_ok=True)
+    sorting = spec.sorting
+    clustering_method = sorting.clustering_method
 
-    # Get chanmap file
-    chanmap_filename = config.chanmap_file.format(recording_process_id)
-
-    sorter = config.sorters_names[process_parameters["clustering_method"]]
+    if clustering_method == "SpikeInterface":
+        raise job_spec.JobSpecError(
+            'clustering_method "SpikeInterface" is not a sorter. Name the sorter itself '
+            f"({sorted(config.si_sorters)}) and put its settings under sorter_params to "
+            "run it through SpikeInterface."
+        )
+    if sorting.legacy and clustering_method not in config.sorters_names:
+        raise job_spec.JobSpecError(
+            f"clustering_method {clustering_method!r} is not a legacy sorter "
+            f"({sorted(config.sorters_names)}). Sorters run through SpikeInterface need a "
+            "namespaced paramset (settings under sorter_params)."
+        )
+    if not sorting.legacy:
+        si_wrappers.si_sorter_name(
+            clustering_method
+        )  # unknown sorter: fail before sorting
 
     # Optional pinned sorter version: an allow-listed key from sorter_registry.json. Resolved
     # before anything runs so an unknown key, a drifted env or an uncached image fails the job
     # right away instead of silently running something else.
-    resolved = resolve_sorter_version(process_parameters)
+    resolved = resolve_sorter_version(clustering_method, sorting.sorter_version)
 
-    # If DREDge ran as a preprocessing step, motion is already corrected. By default disable
-    # Kilosort's own internal drift correction so motion is not corrected twice; set
-    # "disable_sorter_drift": false in the dredge preprocess params to keep both.
-    dredge_params = pw.preprocess_tool_params(recording_process_id, "dredge")
-    if dredge_params is not None:
-        if dredge_params.get("disable_sorter_drift", True):
-            in_container = resolved is not None and resolved.entry.mode == "container"
-            process_parameters = disable_internal_drift(
-                process_parameters, sorter, in_container
-            )
-        else:
-            print(
-                "DREDge preprocessing detected but disable_sorter_drift=false: keeping",
-                sorter,
-                "internal drift correction",
-            )
+    in_container = resolved is not None and resolved.entry.mode == "container"
+    if sorting.legacy and not in_container and clustering_method not in NATIVE_RUNNERS:
+        raise job_spec.JobSpecError(
+            f"{clustering_method} only runs in a container: pin a container "
+            "sorter_version from sorter_registry.json"
+        )
 
     sorter_processed_directory = pathlib.Path(
-        processed_directory, process_parameters["clustering_method"] + "_output"
+        processed_directory, clustering_method + "_output"
     )
     pathlib.Path(sorter_processed_directory).mkdir(parents=True, exist_ok=True)
 
-    l = process_parameters.pop("clustering_method")  # noqa: E741, F841  (pop() mutates the dict)
+    if sorting.legacy:
+        run_legacy_sorter(
+            recording_process_id,
+            sorting,
+            resolved,
+            raw_directory,
+            sorter_processed_directory,
+        )
+    else:
+        run_spikeinterface_sorter(
+            spec, resolved, raw_directory, sorter_processed_directory
+        )
+
+    if resolved is not None:
+        write_provenance(resolved, sorter_processed_directory)
+
+    print(clustering_method, " this is the sorter")
+    params_file_for_different_os(sorter_processed_directory)
+
+    return sorter_processed_directory
+
+
+def run_legacy_sorter(
+    recording_process_id, sorting, resolved, raw_directory, sorter_processed_directory
+):
+    """A flat paramset: every key but clustering_method goes to the sorter, as it always has."""
+
+    process_parameters_filename = config.process_parameter_file.format(
+        recording_process_id
+    )
+    chanmap_filename = config.chanmap_file.format(recording_process_id)
+    sorter = config.sorters_names[sorting.clustering_method]
+    in_container = resolved is not None and resolved.entry.mode == "container"
+
+    process_parameters = dict(sorting.sorter_params)
+
+    # If a motion-correction step ran in preprocessing, motion is already corrected. By
+    # default disable Kilosort's own internal drift correction so motion is not corrected
+    # twice; set "disable_sorter_drift": false in the motion step's params to keep both.
+    if sorting.disable_drift:
+        _, override = job_spec.drift_override(sorting.clustering_method, in_container)
+        process_parameters.update(override)
+        print(
+            "motion-correction preprocessing detected: passing",
+            override,
+            "to",
+            sorter,
+        )
+
+    # The MATLAB sorters and Kilosort 4 read their settings from this file, which must not
+    # hold clustering_method / sorter_version (Kilosort 4 rejects unknown keys).
     params_text = json.dumps(process_parameters)
     print("new params")
     print(params_text)
     write_file(process_parameters_filename, params_text)
 
-    if resolved is not None and resolved.entry.mode == "container":
-        sorter_processed_directory = SpikeInterfaceContainer.run(
+    if in_container:
+        SpikeInterfaceContainer.run(
             resolved, raw_directory, sorter_processed_directory, process_parameters
         )
     elif sorter == config.sorters_names["kilosort2"]:
@@ -97,18 +153,31 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
             chanmap_filename,
         )
 
-    else:
-        print("skipping")
 
-    if resolved is not None:
-        write_provenance(resolved, sorter_processed_directory)
+def run_spikeinterface_sorter(
+    spec, resolved, raw_directory, sorter_processed_directory
+):
+    """A namespaced paramset: sort through SpikeInterface, then its postprocessing."""
 
-    print(sorter, " this is the sorter")
-    if "kilosort" in sorter.lower():
-        print("params file different os function here", sorter_processed_directory)
-        params_file_for_different_os(sorter_processed_directory)
+    sorter_name = si_wrappers.si_sorter_name(spec.sorting.clustering_method)
+    recording, sorting_result = si_wrappers.run_sorter(
+        spec.sorting, resolved, raw_directory, sorter_processed_directory
+    )
 
-    return sorter_processed_directory
+    # A sorter that is not Kilosort leaves no phy folder, so one is always exported:
+    # that folder is what the DataJoint element and the IBL step read.
+    needs_phy = not si_wrappers.is_kilosort(sorter_name)
+    wants_phy = spec.postprocessing.get("export") == "phy"
+    if wants_phy and not needs_phy:
+        print(sorter_name, "already wrote a phy folder; not exporting over it")
+    if spec.postprocessing or needs_phy:
+        si_wrappers.run_postprocessing(
+            recording,
+            sorting_result,
+            sorter_processed_directory,
+            spec.postprocessing,
+            export_phy=needs_phy,
+        )
 
 
 def installed_version(package):
@@ -120,21 +189,19 @@ def installed_version(package):
         return None
 
 
-def resolve_sorter_version(process_parameters):
-    """Pop "sorter_version" from the process params and resolve it against the registry.
+def resolve_sorter_version(clustering_method, key):
+    """Resolve the job's "sorter_version" registry key, or None when it doesn't pin one.
 
-    Returns None when the job doesn't pin a version (legacy behavior). The key is always
-    removed so it never reaches the sorter settings (KS4 rejects unknown keys).
+    Checks that the entry is for this clustering_method and that what is installed (the
+    sorter package, or the host SpikeInterface for a container) matches the entry.
     """
 
-    key = process_parameters.pop("sorter_version", None)
     if key is None:
         return None
 
     resolved = sorter_registry.resolve(key)
     entry = resolved.entry
 
-    clustering_method = process_parameters["clustering_method"]
     if entry.sorter != clustering_method:
         raise sorter_registry.SorterRegistryError(
             f"sorter_version {key} runs {entry.sorter}, but clustering_method is {clustering_method}"
@@ -177,41 +244,6 @@ def write_provenance(resolved, sorter_processed_directory):
     provenance_file = pathlib.Path(sorter_processed_directory, PROVENANCE_FILENAME)
     with open(provenance_file, "w") as f:
         json.dump(provenance, f, indent=4)
-
-
-def disable_internal_drift(process_parameters, sorter, in_container=False):
-    """Turn off a Kilosort sorter's built-in motion/drift correction.
-
-    Used when DREDge has already corrected motion in preprocessing. The mechanism differs
-    per Kilosort version:
-      - KS4 (python): nblocks=0 in the settings dict (KS4 rejects unknown keys, so no
-        extra flag is added).
-      - KS3 (matlab kilosortbatch): ops.nblocks=0 (kilosortbatch.m honors this to skip
-        datashift2).
-      - KS2 (matlab run_ks2): ops.reorder=0 (KS2 uses batch reordering, not nblocks).
-      - Any sorter run through SpikeInterface in a container: SpikeInterface params, i.e.
-        do_correction=False (KS2.5/3/4); SpikeInterface's KS2 has no drift parameter.
-    """
-
-    if in_container:
-        if sorter == config.sorters_names["kilosort2"]:
-            print(
-                "DREDge preprocessing detected: SpikeInterface kilosort2 has no drift correction to disable"
-            )
-            return process_parameters
-        process_parameters["do_correction"] = False
-    elif (
-        sorter == config.sorters_names["kilosort4"]
-        or sorter == config.sorters_names["kilosort3"]
-    ):
-        process_parameters["nblocks"] = 0
-    elif sorter == config.sorters_names["kilosort2"]:
-        process_parameters["reorder"] = 0
-
-    print(
-        "DREDge preprocessing detected: disabled internal drift correction for", sorter
-    )
-    return process_parameters
 
 
 class Kilosort2:
@@ -442,26 +474,10 @@ class SpikeInterfaceContainer:
     """
 
     # run_sorter / run_sorter_container arguments a params file must not override.
-    RESERVED_PARAMS = {
-        "sorter_name",
-        "recording",
-        "folder",
-        "remove_existing_folder",
-        "delete_output_folder",
-        "verbose",
-        "raise_error",
-        "with_output",
-        "docker_image",
-        "singularity_image",
-        "delete_container_files",
-        "extra_requirements",
-        "installation_mode",
-        "spikeinterface_version",
-        "spikeinterface_folder_source",
-    }
+    RESERVED_PARAMS = job_spec.RESERVED_RUN_SORTER_PARAMS
 
     # Recording extra_requirements already in the image (installed with spikeinterface).
-    IMAGE_PACKAGES = {"neo"}
+    IMAGE_PACKAGES = si_wrappers.IMAGE_PACKAGES
 
     @staticmethod
     def run_sorter_kwargs(resolved, folder, sorter_params):
@@ -474,7 +490,7 @@ class SpikeInterfaceContainer:
 
         # SpikeInterface's Kilosort wrappers copy the recording to recording.dat; phy reads
         # temp_wh.dat, so drop the raw-sized copy unless the paramset asks to keep it.
-        sorter_params = {'delete_recording_dat': True, **sorter_params}
+        sorter_params = {"delete_recording_dat": True, **sorter_params}
 
         return dict(
             sorter_name=resolved.entry.sorter,
@@ -492,53 +508,35 @@ class SpikeInterfaceContainer:
     def read_recording(raw_directory):
         """Open the SpikeGLX ap stream in raw_directory (raw run or CatGT/DREDge output)."""
 
-        import spikeinterface.extractors as se
-
-        raw_directory = pathlib.Path(raw_directory)
-        meta_files = sorted(raw_directory.glob("*ap.meta"))
-        if not meta_files:
-            raise ValueError("No *ap.meta found in " + raw_directory.as_posix())
-
-        probe_match = re.search(r"imec([0-9]+)", meta_files[0].name)
-        stream_id = (
-            ("imec" + probe_match.group(1) + ".ap") if probe_match else "imec0.ap"
-        )
-        return se.read_spikeglx(
-            folder_path=raw_directory.as_posix(), stream_id=stream_id
-        )
+        return si_wrappers.read_recording(raw_directory)
 
     @staticmethod
     def run(resolved, raw_directory, output_directory, sorter_params):
-        """Sort in the container; returns the raw Kilosort output folder (phy files)."""
+        """Sort in the container. The phy files end up directly in output_directory
+        (`<clustering_method>_output`, where U19-pipeline-python loads them from);
+        SpikeInterface's own files go in its `spikeinterface/` subfolder.
+        """
 
         import spikeinterface.sorters as ss
 
+        output_directory = pathlib.Path(output_directory)
         recording = SpikeInterfaceContainer.read_recording(raw_directory)
+        si_wrappers.drop_image_requirements(recording, resolved.entry.key)
 
-        # SpikeInterface pip installs a recording's extra_requirements from PyPI inside the
-        # container (every neo reader, SpikeGLX included, asks for "neo"). Compute nodes are
-        # offline, so drop what the image already has and refuse anything else.
-        missing = sorted(
-            set(recording.extra_requirements) - SpikeInterfaceContainer.IMAGE_PACKAGES
-        )
-        if missing:
-            raise ValueError(
-                f"{resolved.entry.key}: recording needs {missing}, which the image does not provide"
-            )
-        recording.extra_requirements = []
-
+        # run_sorter empties its folder first, so it gets a scratch folder of its own.
+        work = output_directory.with_name(output_directory.name + "_si_work")
         kwargs = SpikeInterfaceContainer.run_sorter_kwargs(
-            resolved, output_directory, sorter_params
+            resolved, work, sorter_params
         )
         print("running", resolved.entry.key, "in", resolved.sif_path)
         ss.run_sorter(recording=recording, **kwargs)
 
-        sorter_output = pathlib.Path(output_directory, "sorter_output")
-        if not sorter_output.is_dir():
+        if not (work / "sorter_output").is_dir():
             raise RuntimeError(
-                f"{resolved.entry.key}: no sorter_output folder in {output_directory}"
+                f"{resolved.entry.key}: no sorter_output folder in {work}"
             )
-        return sorter_output
+        si_wrappers.adopt_sorter_folder(work, output_directory, flatten=True)
+        return output_directory
 
 
 def params_file_for_different_os(kilosort_output_dir):
