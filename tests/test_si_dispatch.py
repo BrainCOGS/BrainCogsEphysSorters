@@ -347,3 +347,33 @@ def test_phy_folder_without_amplitudes_is_left_without(tmp_path):
     si_wrappers.make_phy_folder_element_compatible(tmp_path)
 
     assert not (tmp_path / "amplitudes.npy").exists()
+
+
+# ---------------------------------------------------------------------------- job kwargs
+
+
+def test_n_jobs_defaults_to_the_cpus_slurm_gave_the_job(monkeypatch):
+    monkeypatch.setenv("SLURM_CPUS_PER_TASK", "8")
+    assert si_wrappers.with_default_job_kwargs(None) == {
+        "n_jobs": 8,
+        "chunk_duration": "1s",
+    }
+    assert si_wrappers.with_default_job_kwargs({"chunk_memory": "1G"}) == {
+        "n_jobs": 8,
+        "chunk_memory": "1G",
+    }
+
+
+def test_paramset_n_jobs_wins_over_slurm(monkeypatch):
+    monkeypatch.setenv("SLURM_CPUS_PER_TASK", "8")
+    given = {"n_jobs": 2, "progress_bar": False}
+    assert si_wrappers.with_default_job_kwargs(given) == given
+
+
+@pytest.mark.parametrize("cpus", [None, "", "1", "many"])
+def test_no_job_kwargs_are_added_without_several_slurm_cpus(monkeypatch, cpus):
+    if cpus is None:
+        monkeypatch.delenv("SLURM_CPUS_PER_TASK", raising=False)
+    else:
+        monkeypatch.setenv("SLURM_CPUS_PER_TASK", cpus)
+    assert si_wrappers.with_default_job_kwargs({}) == {}

@@ -196,6 +196,8 @@ applied in list order:
   ...). `kwargs` go to that function. `correct_motion` is the motion step: its `preset` defaults to `dredge`
   and its motion estimation runs on `cuda` when available (set `estimate_motion_kwargs.device` to change that).
 - **job_kwargs:** (optional) SpikeInterface job kwargs for `correct_motion` and for writing the result.
+  Without `n_jobs`, the number of cores slurm gave the job (`SLURM_CPUS_PER_TASK`) is used, here and for the
+  sorter's and the postprocessing's job kwargs, so a paramset does not have to know the job's resources.
 - **materialize:** (bool, default `false`) see below.
 - **disable_sorter_drift:** (bool, default `true`) as for DREDge: if the list has a `correct_motion` step, the
   sorter's own drift correction is turned off. When the job has more than one motion step, the first one decides.

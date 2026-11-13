@@ -13,6 +13,7 @@ spikeinterface and torch are imported inside the functions, so legacy CatGT/Kilo
 and the test suite never pay for (or need) them.
 """
 
+import os
 import pathlib
 import re
 import shutil
@@ -37,6 +38,26 @@ PHY_EXTENSIONS = (
 # good / ok / mua / noise (ClusterQualityLabel), so it is replaced on export.
 PHY_UNSORTED = "unsorted"
 DEFAULT_CLUSTER_LABEL = "mua"
+
+
+def with_default_job_kwargs(job_kwargs):
+    """SpikeInterface job kwargs with `n_jobs` defaulting to the CPUs slurm gave the job.
+
+    A paramset is shared by every job that selects it, so it should not have to know how
+    many cores the cluster job asked for: without `n_jobs`, SLURM_CPUS_PER_TASK is used
+    (with 1 s chunks, unless the paramset sets a chunk size). Outside slurm, or in a job
+    with a single CPU, nothing is added and SpikeInterface's own defaults apply.
+    """
+
+    job_kwargs = dict(job_kwargs or {})
+    cpus = os.environ.get("SLURM_CPUS_PER_TASK", "")
+    if "n_jobs" not in job_kwargs and cpus.isdigit() and int(cpus) > 1:
+        job_kwargs["n_jobs"] = int(cpus)
+        if not {"chunk_duration", "chunk_size", "chunk_memory", "total_memory"} & set(
+            job_kwargs
+        ):
+            job_kwargs["chunk_duration"] = "1s"
+    return job_kwargs
 
 
 # ------------------------------------------------------------------ SpikeGLX reading/writing
@@ -296,7 +317,7 @@ class spikeinterface_preproc:
                 "- writing probe channels only",
             )
 
-        job_kwargs = params.get("job_kwargs", {})
+        job_kwargs = with_default_job_kwargs(params.get("job_kwargs"))
         rec = apply_steps(
             rec,
             params["steps"],
@@ -407,6 +428,9 @@ def run_sorter(sorting_spec, resolved, raw_directory, output_directory):
     if is_kilosort(sorter_name) and "delete_recording_dat" not in sorter_params:
         si_params.setdefault("delete_recording_dat", True)
     validate_sorter_namespaces(sorter_name, sorter_params, si_params)
+    # Sorters that take a binary file (the Kilosorts) accept job kwargs for writing it.
+    if "n_jobs" in ss.get_default_sorter_params(sorter_name):
+        si_params = with_default_job_kwargs(si_params)
 
     si_dir = output_directory / SI_SUBDIR
     si_dir.mkdir(parents=True, exist_ok=True)
@@ -416,7 +440,7 @@ def run_sorter(sorting_spec, resolved, raw_directory, output_directory):
         recording,
         sorting_spec.lazy_steps,
         motion_folder=si_dir / "motion",
-        job_kwargs=sorting_spec.lazy_job_kwargs,
+        job_kwargs=with_default_job_kwargs(sorting_spec.lazy_job_kwargs),
     )
 
     work = output_directory.with_name(output_directory.name + "_si_work")
@@ -554,7 +578,7 @@ def run_postprocessing(
     output_directory = pathlib.Path(output_directory)
     si_dir = output_directory / SI_SUBDIR
     si_dir.mkdir(parents=True, exist_ok=True)
-    job_kwargs = postprocessing.get("job_kwargs") or {}
+    job_kwargs = with_default_job_kwargs(postprocessing.get("job_kwargs"))
 
     requested = dict(postprocessing.get("extensions") or {})
     if export_phy:
