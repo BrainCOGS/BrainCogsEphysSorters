@@ -158,6 +158,36 @@ And for branches, add the flag
 git clone -b tmp --single-branch --recurse-submodules https://github.com/BrainCOGS/BrainCogsEphysSorters
 ```
 
+### Python environment on the cluster (uv)
+
+On spock the automatic pipeline (U19-pipeline-python) can run `main_script.py` from the uv
+environment of this checkout, `.venv`, built from `uv.lock`. It is selected there with
+`"spock_ephys_env": "uv"` under `custom` in `dj_local_conf.json`; without it jobs still
+run in the conda environment `u19_pipeline_python_env3`.
+
+Compute nodes have no internet, so everything is downloaded on the login node
+(`spockmk2-loginvm`), as the account that submits the jobs (`u19prod`):
+
+```
+cd /mnt/cup/braininit/Shared/repos/AutomaticPipelineProcessing/electrophysiology_processing/BrainCogsEphysSorters
+git pull
+uv sync --locked                          # python, packages and .venv; fails if uv.lock does not match pyproject.toml
+uv sync --frozen --offline --check        # what a job runs before it starts: "Would make no changes"
+.venv/bin/python -c "import torch, kilosort, spikeinterface; print(torch.__version__, kilosort.__version__, spikeinterface.__version__)"
+```
+
+- The pipeline runs `uv sync --locked` itself before every `sbatch`, so after a `git pull`
+  the next job brings the environment up to date. A job never installs anything: it stops
+  with a message in its error log when `.venv` is missing or does not match `uv.lock`.
+- `uv` has to be on `PATH` for `bash -lc` over ssh and in the job (after `source ~/.bashrc`).
+- No `module load` is needed for the GPU: the torch wheels bring their own CUDA libraries.
+  The Kilosort 2 / 3 sorters still need `module load matlab`, which the pipeline's slurm
+  script does.
+- The IBL atlas step does not use this environment. `prepare_ephys_data_ibl_script.sh` runs
+  `prepare_ephys_data_ibl.py` with the conda environment
+  `/usr/people/u19prod/.conda/envs/iblenv`, and because the script ends with `echo` a
+  failure of that step does not fail the job.
+
 ### Set up CatGT
 For preprocessing, we currently support CatGT:
 ```
