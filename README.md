@@ -310,6 +310,11 @@ image. The probe comes from the SpikeGLX `.meta`, not from the chanmap file.
   `n_chan_bin` and `fs` come from the recording.
 - **preprocessing:** (optional) a SpikeInterface step list applied lazily before the sort; see "The whole run
   through SpikeInterface, from one paramset" above.
+- **resources:** (optional) what the cluster job should ask slurm for, e.g.
+  `{"cpus": 16, "gpus": 1, "mem": "120G", "time": "12:00:00"}`. U19-pipeline-python reads it when it writes
+  the slurm file; this repo ignores it and takes its worker count from the cores slurm granted. Without it a
+  SpikeInterface job asks for the largest `n_jobs` named in its paramsets, or 8 cores. `"gpus": 0` is for
+  sorters that do not use a GPU. Kilosort uses one GPU however many are requested.
 - **si_params:** SpikeInterface's options for the sorter wrapper (for Kilosort 4: `do_correction`,
   `skip_kilosort_preprocessing`, `save_preprocessed_copy`, `delete_recording_dat`, ...) and job kwargs
   (`n_jobs`, ...). For the other sorters SpikeInterface does not separate the two, so either namespace takes

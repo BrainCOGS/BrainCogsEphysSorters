@@ -16,8 +16,8 @@ Sorting paramsets come in two shapes:
   legacy      no `sorter_params` key. Everything except `clustering_method` (and the
               optional `sorter_version`) is passed to the sorter exactly as before.
   namespaced  `sorter_params` is present. Only `sorter_version`, `sorter_params`,
-              `si_params`, `preprocessing` and `postprocessing` are allowed next to
-              `clustering_method`, and only `sorter_params` reaches the sorter. Runs
+              `si_params`, `preprocessing`, `postprocessing` and `resources` are allowed
+              next to `clustering_method`, and only `sorter_params` reaches the sorter. Runs
               through SpikeInterface. With `preprocessing` (a step list), this one
               paramset describes the whole run.
 
@@ -78,6 +78,7 @@ _NAMESPACED_KEYS = {
     "si_params",
     "preprocessing",
     "postprocessing",
+    "resources",
 }
 _POSTPROCESSING_KEYS = {"extensions", "export", "job_kwargs"}
 EXPORT_FORMATS = {"phy"}
@@ -344,6 +345,11 @@ def normalize_sorting(raw):
     overlap = sorted(set(sorter_params) & set(si_params))
     if overlap:
         raise JobSpecError(f"keys in both sorter_params and si_params: {overlap}")
+
+    # `resources` (cores, GPUs, memory, time) is for U19-pipeline-python, which turns it
+    # into the job's slurm request before the job exists. Nothing here uses it: the
+    # granted cores are read back from SLURM_CPUS_PER_TASK.
+    _dict_or_empty(raw.get("resources"), "resources")
 
     inline_preprocessing = None
     if raw.get("preprocessing") is not None:

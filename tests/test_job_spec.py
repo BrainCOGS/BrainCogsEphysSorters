@@ -484,3 +484,18 @@ def test_legacy_paramset_does_not_interpret_preprocessing():
     spec = build([], {"clustering_method": "kilosort4", "preprocessing": SI_STEPS})
     assert spec.sorting.sorter_params == {"preprocessing": SI_STEPS}
     assert spec.sorting.lazy_steps == []
+
+
+def test_resources_are_accepted_and_reach_nothing():
+    """U19-pipeline-python reads `resources` to write the slurm request."""
+    resources = {"cpus": 16, "gpus": 1, "mem": "120G", "time": "12:00:00"}
+    spec = build([], {**NEW_KS4, "resources": resources})
+    assert spec.sorting.sorter_params == NEW_KS4["sorter_params"]
+    assert spec.sorting.si_params == NEW_KS4["si_params"]
+    assert "resources" not in spec.postprocessing
+    assert build([], {**NEW_KS4, "resources": None}).sorting.legacy is False
+
+
+def test_resources_must_be_an_object():
+    with pytest.raises(JobSpecError, match="resources"):
+        build([], {**NEW_KS4, "resources": 16})
