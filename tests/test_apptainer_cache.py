@@ -149,7 +149,7 @@ def test_cache_entry_failure_cleans_up_and_raises(entry, tmp_path):
     runner = FakeApptainer(returncode=1)
     with pytest.raises(RuntimeError, match="kilosort3@0.2.0"):
         ac.cache_entry(entry, sif_dir=tmp_path, cache_dir=tmp_path / "c", runner=runner)
-    assert list(p.name for p in tmp_path.iterdir()) == ["c"]
+    assert [p.name for p in tmp_path.iterdir()] == ["c"]
 
 
 def test_cache_entry_success_without_output_raises(entry, tmp_path):

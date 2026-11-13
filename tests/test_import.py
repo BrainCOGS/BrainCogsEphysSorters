@@ -17,6 +17,10 @@ MODULES = [
     "u19_sorting.sorter_wrappers",
     "u19_sorting.postprocess_wrappers",
     "u19_sorting.run_job",
+    "u19_sorting.job_spec",
+    "u19_sorting.si_wrappers",
+    "u19_sorting.sorter_registry",
+    "u19_sorting.apptainer_cache",
 ]
 
 
