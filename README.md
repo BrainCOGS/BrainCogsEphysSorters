@@ -137,6 +137,25 @@ A process parameter file can pin the sorter build with a `sorter_version` key fr
 - Unknown keys, a `clustering_method` that doesn't match the key, or an image that isn't cached fail the job
   before sorting starts. What ran is recorded in `sorter_provenance.json` next to the sorter output.
 
+##### Building container images on spock
+
+`python -m u19_sorting.apptainer_cache` (below) cannot build the Kilosort images: they ship Python 3.9
+and `spikeinterface` >= 0.104 needs Python >= 3.10, and on spock its `%post` step fails anyway (no
+`/etc/subuid` entry, so Apptainer falls back to its bundled fakeroot: `GLIBC_2.34' not found (required
+by /.singularity.d/libs/faked)`). Use `scripts/sorter_image.sh` instead, from the checkout with `.venv`
+synced:
+
+```
+scripts/sorter_image.sh fetch kilosort2@2.0.2          # login node: layers + wheels into the caches
+sbatch scripts/sorter_image.sh build kilosort2@2.0.2   # compute node, offline, ~6 min
+```
+
+The image gets a uv Python 3.13 venv with the `spikeinterface`, `neo`, `probeinterface` and `numpy`
+versions of `.venv`, first on `PATH`; the sorter keeps the image's own runtime. Unpacking and packing
+are done on the node's local disk: on the login VM or on NFS they take hours. SpikeInterface runs the
+image as an Apptainer instance, which works on spock's A100 and L40S nodes with Apptainer 1.5.5; the
+instance's bookkeeping goes to `~/.apptainer/instances` of the account that runs the job.
+
 ##### Caching container images (login node)
 
 Compute nodes have no internet, so they never pull images. Build them once on a login node into shared storage:
