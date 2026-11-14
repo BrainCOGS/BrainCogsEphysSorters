@@ -152,9 +152,10 @@ sbatch scripts/sorter_image.sh build kilosort2@2.0.2   # compute node, offline, 
 
 The image gets a uv Python 3.13 venv with the `spikeinterface`, `neo`, `probeinterface` and `numpy`
 versions of `.venv`, first on `PATH`; the sorter keeps the image's own runtime. Unpacking and packing
-are done on the node's local disk: on the login VM or on NFS they take hours. SpikeInterface runs the
-image as an Apptainer instance, which works on spock's A100 and L40S nodes with Apptainer 1.5.5; the
-instance's bookkeeping goes to `~/.apptainer/instances` of the account that runs the job.
+are done on the node's local disk: on the login VM or on NFS they take hours. Jobs run each command
+in the image with `apptainer exec` (`u19_sorting/apptainer_exec.py`) rather than in the Apptainer
+instance SpikeInterface would start: on spock such instances were killed seconds into the sort on some
+nodes.
 
 ##### Caching container images (login node)
 
