@@ -346,7 +346,10 @@ def container_run(tmp_path, monkeypatch):
     seen = {}
 
     def fake_run_sorter(recording, **kwargs):
+        from spikeinterface.sorters import runsorter
+
         seen["extra_requirements"] = list(recording.extra_requirements)
+        seen["client"] = runsorter.ContainerClient
         (pathlib.Path(kwargs["folder"]) / "sorter_output").mkdir(parents=True)
 
     monkeypatch.setattr(ss, "run_sorter", fake_run_sorter)
@@ -360,7 +363,19 @@ def container_run(tmp_path, monkeypatch):
         sw.SpikeInterfaceContainer.run(resolved, tmp_path / "raw", tmp_path / "out", {})
         return seen["extra_requirements"]
 
+    run.seen = seen
     return run
+
+
+def test_container_run_uses_apptainer_exec(container_run):
+    from spikeinterface.sorters import runsorter
+
+    import u19_sorting.apptainer_exec as ae
+
+    container_run([])
+    # instances were killed mid-sort on spock; every command runs with `apptainer exec`
+    assert container_run.seen["client"] is ae.ApptainerExecClient
+    assert runsorter.ContainerClient is not ae.ApptainerExecClient
 
 
 @pytest.mark.parametrize("extra", [[], ["neo"], ["neo", "neo"]])
