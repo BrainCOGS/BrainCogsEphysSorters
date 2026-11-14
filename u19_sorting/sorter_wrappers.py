@@ -3,7 +3,7 @@ import json
 import pathlib
 import subprocess
 
-from u19_sorting import config, job_spec, si_wrappers, sorter_registry
+from u19_sorting import apptainer_exec, config, job_spec, si_wrappers, sorter_registry
 from u19_sorting.utils import write_file
 
 # Written next to the sorter output when the job pinned a "sorter_version".
@@ -529,7 +529,8 @@ class SpikeInterfaceContainer:
             resolved, work, sorter_params
         )
         print("running", resolved.entry.key, "in", resolved.sif_path)
-        ss.run_sorter(recording=recording, **kwargs)
+        with apptainer_exec.exec_instead_of_instances():
+            ss.run_sorter(recording=recording, **kwargs)
 
         if not (work / "sorter_output").is_dir():
             raise RuntimeError(
