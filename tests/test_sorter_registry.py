@@ -1,5 +1,6 @@
 import json
 import pathlib
+import tomllib
 
 import pytest
 
@@ -182,6 +183,36 @@ def test_load_registry_env_override(tmp_path, monkeypatch):
     path = write_registry(tmp_path, {"kilosort4@4.1.7": NATIVE})
     monkeypatch.setenv("U19_SORTER_REGISTRY", str(path))
     assert list(sr.load_registry()) == ["kilosort4@4.1.7"]
+
+
+def locked_version(package):
+    lock = tomllib.loads(
+        (pathlib.Path(__file__).parents[1] / "uv.lock").read_text(encoding="utf-8")
+    )
+    (version,) = [p["version"] for p in lock["package"] if p["name"] == package]
+    return version
+
+
+def test_container_entries_match_the_locked_spikeinterface():
+    """The host serializes the recording and the image's SpikeInterface loads it, so
+    resolve_sorter_version refuses an image whose SpikeInterface is not the host's: every
+    container entry has to pin the version uv.lock installs on the host."""
+    locked = locked_version("spikeinterface")
+    registry = sr.load_registry()
+    containers = {k: e for k, e in registry.items() if e.mode == "container"}
+
+    assert containers
+    for key, entry in containers.items():
+        assert entry.spikeinterface == locked, key
+        assert entry.sif.endswith(f"_si-{locked}.sif"), key
+
+
+def test_native_entries_match_the_locked_sorter():
+    from u19_sorting.sorter_wrappers import NATIVE_PACKAGES
+
+    for key, entry in sr.load_registry().items():
+        if entry.mode == "native":
+            assert entry.version == locked_version(NATIVE_PACKAGES[entry.sorter]), key
 
 
 def test_repository_registry_is_valid():

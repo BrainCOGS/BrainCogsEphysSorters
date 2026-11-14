@@ -227,3 +227,34 @@ def test_cli_unknown_key_refused(registry_file, tmp_path):
 
 def test_cli_build_failure_returns_nonzero(registry_file, tmp_path):
     assert cli(registry_file, tmp_path, runner=FakeApptainer(returncode=1)) == 1
+
+
+@pytest.mark.parametrize(
+    "processing_dir, sif_dir, cache_dir",
+    [
+        # della: the paths config had before, unchanged
+        (
+            "/scratch/gpfs/BRAINCOGS/electrophysiology_processing",
+            "/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif",
+            "/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/cache",
+        ),
+        # spock: next to the checkout, instead of a della path that does not exist there
+        (
+            "/mnt/cup/braininit/Shared/repos/AutomaticPipelineProcessing/electrophysiology_processing",
+            "/mnt/cup/braininit/Shared/repos/AutomaticPipelineProcessing/electrophysiology_processing/apptainer/sif",
+            "/mnt/cup/braininit/Shared/repos/AutomaticPipelineProcessing/electrophysiology_processing/apptainer/cache",
+        ),
+    ],
+)
+def test_apptainer_dirs_sit_next_to_the_checkout(processing_dir, sif_dir, cache_dir):
+    from u19_sorting import config
+
+    assert config.apptainer_dirs(processing_dir) == (sif_dir, cache_dir)
+
+
+def test_config_apptainer_dirs_follow_the_checkout():
+    from u19_sorting import config
+
+    assert (config.apptainer_sif_dir, config.apptainer_cache_dir) == (
+        config.apptainer_dirs(config.ephys_processing_dir)
+    )

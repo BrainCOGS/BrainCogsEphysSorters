@@ -156,8 +156,12 @@ cluster requires it for `apptainer build`.
 | Setting | Default | Override |
 |---|---|---|
 | Registry | `sorter_registry.json` in this repo | `U19_SORTER_REGISTRY` |
-| Images (`.sif`) | `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif` | `U19_APPTAINER_SIF_DIR` |
-| Apptainer layer cache | `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/cache` | `U19_APPTAINER_CACHEDIR` |
+| Images (`.sif`) | `apptainer/sif` next to the checkout: `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif` on della, `AutomaticPipelineProcessing/electrophysiology_processing/apptainer/sif` on spock | `U19_APPTAINER_SIF_DIR` |
+| Apptainer layer cache | `apptainer/cache` next to the checkout | `U19_APPTAINER_CACHEDIR` |
+
+Each container entry pins the `spikeinterface` version that `uv.lock` installs on the host (a test checks
+this): the host serializes the recording and the image's SpikeInterface loads it. After a lock update that
+changes `spikeinterface`, add new entries (new `.sif` names) for the new version and build them.
 
 To add a version: append a new key to `sorter_registry.json` (never edit or reuse an existing key, since past
 jobs' provenance points at it), then run `python -m u19_sorting.apptainer_cache <key>` on a login node.
