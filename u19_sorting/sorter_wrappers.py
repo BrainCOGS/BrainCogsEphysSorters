@@ -1,6 +1,7 @@
 import json
 import pathlib
 import subprocess
+import tempfile
 
 import u19_sorting.preprocess_wrappers as pw
 from u19_sorting import config
@@ -114,6 +115,27 @@ def disable_internal_drift(process_parameters, sorter):
     return process_parameters
 
 
+def run_matlab(command):
+    """Run a MATLAB shell command; return (returncode, stdout, stderr) once MATLAB exits.
+
+    MATLAB's output goes to files, not pipes. MATLAB (R2024a) starts a MathWorksServiceHost
+    daemon that outlives it and inherits its stdout and stderr; with pipes, reading them
+    only ends when that daemon does, so a finished sort kept the job waiting until slurm's
+    time limit.
+    """
+
+    with (
+        tempfile.TemporaryFile(mode="w+", errors="replace") as out,
+        tempfile.TemporaryFile(mode="w+", errors="replace") as err,
+    ):
+        p = subprocess.run(
+            command, shell=True, stdin=subprocess.DEVNULL, stdout=out, stderr=err
+        )
+        out.seek(0)
+        err.seek(0)
+        return p.returncode, out.read(), err.read()
+
+
 class Kilosort2:
     """Kilosort2 caller functions"""
 
@@ -141,13 +163,13 @@ class Kilosort2:
             chanmap_filename,
         )
         print("ks2_command .....", ks2_command)
-        p = subprocess.run(ks2_command, text=True, shell=True, capture_output=True)
+        returncode, stdout, stderr = run_matlab(ks2_command)
 
-        print("stderr here", p.stderr)
-        print("stdout", p.stdout)
+        print("stderr here", stderr)
+        print("stdout", stdout)
 
-        if p.returncode:
-            raise Exception(p.stderr)
+        if returncode:
+            raise Exception(stderr)
 
     '''
     @staticmethod
@@ -239,13 +261,13 @@ class Kilosort3:
         )
         print("ks_command .....", ks_command)
         print("kilosort3 here .............................")
-        p = subprocess.run(ks_command, text=True, shell=True, capture_output=True)
+        returncode, stdout, stderr = run_matlab(ks_command)
 
-        print("stderr here", p.stderr)
-        print("stdout", p.stdout)
+        print("stderr here", stderr)
+        print("stdout", stdout)
 
-        if p.returncode:
-            raise Exception(p.stderr)
+        if returncode:
+            raise Exception(stderr)
 
     @staticmethod
     def create_Kilosort3_command(
