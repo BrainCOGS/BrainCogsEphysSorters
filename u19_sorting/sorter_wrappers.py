@@ -49,10 +49,15 @@ def sorter_main(recording_process_id, raw_directory, processed_directory):
     )
     pathlib.Path(sorter_processed_directory).mkdir(parents=True, exist_ok=True)
 
-    l = process_parameters.pop("clustering_method")  # noqa: E741, F841  (pop() mutates the dict)
+    # The sorter gets the parameters without clustering_method, in a file next to its
+    # output. The job's own parameter file stays as written, so a rerun can read it again.
+    process_parameters.pop("clustering_method")
     params_text = json.dumps(process_parameters)
     print("new params")
     print(params_text)
+    process_parameters_filename = pathlib.Path(
+        sorter_processed_directory, "sorter_params.json"
+    ).as_posix()
     write_file(process_parameters_filename, params_text)
 
     if sorter == config.sorters_names["kilosort2"]:
