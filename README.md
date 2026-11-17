@@ -45,7 +45,7 @@ Logs will be written:
 
 Preprocess parameter file is a json file to configure preprocessing steps and select the desired sorter, main parameters are:
 
-- **clustering_method:** (str) Which sorter will be used (Kilosort2, Kilosort, SpikeInterface).
+- **clustering_method:** (str) Which sorter will be used (`kilosort2`, `kilosort3`, `kilosort4`; see [SpikeInterface path](#spikeinterface-path-optional) for the others).
 - **cat_gt:** (dict) All parameters corresponding to catGT preprocessing.
   - **use_cat_gt:** (bool) 0 if cat_gt will not be used, 1 otherwise.
   - **"cat_gt_params"**: (dict) Cat_GT params that are included in command line when it is called
@@ -100,8 +100,10 @@ estimates and applies motion with SpikeInterface's `dredge` preset on the GPU, a
 - **device:** `cuda` (falls back to `cpu` if no GPU) or `cpu`.
 - **motion_kwargs / job_kwargs:** forwarded to `correct_motion` (estimation options / parallel chunk options).
 - **disable_sorter_drift:** (bool, default `true`) when true the sorter stage sets `nblocks=0` (KS3/KS4) or
-  `reorder=0` (KS2) so motion is corrected only once. Set to `false` to keep Kilosort's own drift correction
-  on top of DREDge.
+  `reorder=0` (KS2) so motion is corrected only once. A sort run through SpikeInterface (a container
+  `sorter_version` or a namespaced paramset, see below) gets `do_correction=false` instead (KS2.5/KS3/KS4;
+  SpikeInterface's KS2 has no drift option). Set to `false` to keep Kilosort's own drift correction on top of
+  DREDge.
 
 ### Process parameter file
 
@@ -110,6 +112,248 @@ To configure this file refer to each sorter documentation:
 
 - [Kilosort2](https://github.com/MouseLand/Kilosort#parameters)
 
+#### Pinned sorter versions (optional `sorter_version`)
+
+A process parameter file can pin the sorter build with a `sorter_version` key from
+[`sorter_registry.json`](sorter_registry.json), the allow-list of versions a job can run:
+
+```
+{
+  "clustering_method": "kilosort3",
+  "sorter_version": "kilosort3@3.0.2",
+  "detect_threshold": 6
+}
+```
+
+- No `sorter_version` (or `null`): unchanged behavior (KS4 from the job env, KS2/KS3 through MATLAB).
+- `native` entries (e.g. `kilosort4@4.1.7`) run in the job env, and the job fails if the installed
+  `kilosort` isn't that exact version, so a shared env can't be upgraded silently.
+- `container` entries run the sorter through SpikeInterface inside a cached Apptainer image, so KS2/2.5/3
+  don't need a MATLAB license. The remaining params are **SpikeInterface** sorter params (`detect_threshold`, ...), not Kilosort
+  `ops`, and the probe comes from the SpikeGLX `.meta` rather than the chanmap file. The Kilosort/phy files end up
+  directly in `<clustering_method>_output/`, as for a native run; SpikeInterface's own files are in its
+  `spikeinterface/` subfolder. Kilosort 2.5 has no native runner, so a legacy `kilosort2_5` paramset needs a
+  container `sorter_version`.
+- Unknown keys, a `clustering_method` that doesn't match the key, or an image that isn't cached fail the job
+  before sorting starts. What ran is recorded in `sorter_provenance.json` next to the sorter output.
+
+##### Caching container images (login node)
+
+Compute nodes have no internet, so they never pull images. Build them once on a login node into shared storage:
+
+```
+python -m u19_sorting.apptainer_cache --dry-run   # what's missing
+python -m u19_sorting.apptainer_cache             # build all missing images (or pass keys)
+python -m u19_sorting.apptainer_cache --check     # exit 1 if any image is missing
+```
+
+Each image is the digest-pinned SpikeInterface docker image with the pinned `spikeinterface[full]` installed on top
+(jobs run with `installation_mode="no-install"`, so nothing is pip-installed at run time). The host's
+`spikeinterface` must match the entry's `spikeinterface` version. Images are built next to their final
+location and renamed into place read-only; existing images are never rebuilt. Add `--fakeroot` if the
+cluster requires it for `apptainer build`.
+
+| Setting | Default | Override |
+|---|---|---|
+| Registry | `sorter_registry.json` in this repo | `U19_SORTER_REGISTRY` |
+| Images (`.sif`) | `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif` | `U19_APPTAINER_SIF_DIR` |
+| Apptainer layer cache | `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/cache` | `U19_APPTAINER_CACHEDIR` |
+
+To add a version: append a new key to `sorter_registry.json` (never edit or reuse an existing key, since past
+jobs' provenance points at it), then run `python -m u19_sorting.apptainer_cache <key>` on a login node.
+An image is only rebuilt when its `.sif` file is missing, so if the build recipe in `apptainer_cache.py` changes,
+new entries need new `.sif` names.
+
+
+### SpikeInterface path (optional)
+
+Next to the CatGT + Kilosort path, a job can preprocess and sort through SpikeInterface. A job that uses
+neither of the two pieces below runs exactly as before.
+
+#### `spikeinterface` preprocessing step
+
+A preprocessing step whose method is `spikeinterface` takes a list of SpikeInterface preprocessing functions,
+applied in list order:
+
+```
+{
+  "spikeinterface": {
+    "steps": [
+      {"name": "phase_shift", "kwargs": {}},
+      {"name": "highpass_filter", "kwargs": {"freq_min": 300}},
+      {"name": "common_reference", "kwargs": {"operator": "median", "reference": "global"}},
+      {"name": "correct_motion", "kwargs": {"preset": "dredge"}}
+    ],
+    "job_kwargs": {"n_jobs": 8},
+    "materialize": false,
+    "disable_sorter_drift": true
+  }
+}
+```
+
+- **steps:** each `name` must be in `job_spec.SI_STEP_NAMES`, a list of functions that keep the channel count
+  and the sampling rate (`bandpass_filter`, `highpass_filter`, `common_reference`, `phase_shift`, `whiten`,
+  ...). `kwargs` go to that function. `correct_motion` is the motion step: its `preset` defaults to `dredge`
+  and its motion estimation runs on `cuda` when available (set `estimate_motion_kwargs.device` to change that).
+- **job_kwargs:** (optional) SpikeInterface job kwargs for `correct_motion` and for writing the result.
+  Without `n_jobs`, the number of cores slurm gave the job (`SLURM_CPUS_PER_TASK`) is used, here and for the
+  sorter's and the postprocessing's job kwargs, so a paramset does not have to know the job's resources.
+- **materialize:** (bool, default `false`) see below.
+- **disable_sorter_drift:** (bool, default `true`) as for DREDge: if the list has a `correct_motion` step, the
+  sorter's own drift correction is turned off. When the job has more than one motion step, the first one decides.
+
+`spikeinterface`, `catgt` and `dredge` steps chain in the order of the preprocess list: each reads the SpikeGLX
+`ap.bin`/`ap.meta` the previous step wrote (or the raw run). A `spikeinterface` step is written to disk, as an
+int16 SpikeGLX `ap.bin` with the sync channel appended back and a copy of the `ap.meta`, in
+`spikeinterface_output/` (`spikeinterface_output_2/`, ... for later ones). The exception is a step that is the
+last preprocessing step of a job with a namespaced clustering paramset (below): unless it sets
+`"materialize": true`, nothing is written and the steps are applied lazily to the recording handed to the sorter.
+An empty step list is never written. Because a written copy is rounded to int16, steps that rescale the traces
+(`whiten`, `zscore`, `scale`, ...) need a scale that survives that (for example `int_scale` for `whiten` and
+`zscore`). Like the CatGT and DREDge outputs, `spikeinterface_output*` folders are deleted at the end of the job.
+
+##### Step lists for CatGT and IBL destriping
+
+SpikeInterface documents how to reproduce both in its preprocessing guide
+([How to implement "IBL destriping" or "SpikeGLX CatGT" in SpikeInterface](https://spikeinterface.readthedocs.io/en/stable/modules/preprocessing.html#how-to-implement-ibl-destriping-or-spikeglx-catgt-in-spikeinterface)).
+As step lists:
+
+CatGT (`phase_shift` is CatGT's `tshift`, the global median reference is `-gblcar`; the high-pass stands in for
+`-apfilter=biquad,2,300,0`, which is not part of SpikeInterface's recipe):
+
+```
+{"steps": [
+  {"name": "phase_shift", "kwargs": {}},
+  {"name": "highpass_filter", "kwargs": {"freq_min": 300}},
+  {"name": "common_reference", "kwargs": {"operator": "median", "reference": "global"}}
+]}
+```
+
+CatGT's `-gfix` (removal of fast, large transients seen on many channels at once) has no counterpart in this
+list.
+
+IBL destriping (the guide passes `n_channel_pad=60` to `highpass_filter`, which spikeinterface 0.105 refuses;
+that argument belongs to `highpass_spatial_filter`, where 60 is the default):
+
+```
+{"steps": [
+  {"name": "highpass_filter", "kwargs": {}},
+  {"name": "phase_shift", "kwargs": {}},
+  {"name": "detect_and_interpolate_bad_channels", "kwargs": {}},
+  {"name": "highpass_spatial_filter", "kwargs": {}}
+]}
+```
+
+#### The whole run through SpikeInterface, from one paramset
+
+A namespaced clustering paramset (next section) can carry its own `preprocessing` step list. With the
+`Nothing` preprocess method selected, that single paramset then describes the entire run, and all of it goes
+through SpikeInterface: the raw SpikeGLX run is read, the steps are applied lazily, the sorter (Kilosort
+included) is run with `run_sorter`, and the postprocessing follows. Nothing is written between the stages.
+
+```
+{
+  "clustering_method": "kilosort4",
+  "sorter_version": "kilosort4@4.1.7",
+  "preprocessing": {
+    "steps": [
+      {"name": "phase_shift", "kwargs": {}},
+      {"name": "highpass_filter", "kwargs": {"freq_min": 300}},
+      {"name": "common_reference", "kwargs": {"operator": "median", "reference": "global"}}
+    ]
+  },
+  "sorter_params": {"Th_universal": 9},
+  "si_params": {"save_preprocessed_copy": true, "n_jobs": 8},
+  "postprocessing": {"extensions": {"quality_metrics": {}}}
+}
+```
+
+`preprocessing` takes the same keys as the `spikeinterface` preprocessing step, except `materialize` (it is
+always lazy). If the preprocess file also ends with a lazy `spikeinterface` step, that one runs first.
+
+#### Legacy and namespaced clustering paramsets
+
+A process parameter file without a `sorter_params` key is a legacy paramset: every key except
+`clustering_method` and `sorter_version` is passed to the sorter, exactly as before. `clustering_method` must be
+`kilosort4`, `kilosort3`, `kilosort2` or (with a container `sorter_version`) `kilosort2_5`.
+
+```
+{
+  "clustering_method": "kilosort4",
+  "n_chan_bin": 385,
+  "Th_universal": 9
+}
+```
+
+A process parameter file with a `sorter_params` key is a namespaced paramset and is sorted through
+SpikeInterface's `run_sorter`, in the job environment or, with a container `sorter_version`, in its Apptainer
+image. The probe comes from the SpikeGLX `.meta`, not from the chanmap file.
+
+```
+{
+  "clustering_method": "kilosort4",
+  "sorter_version": "kilosort4@4.1.7",
+  "sorter_params": {"Th_universal": 9},
+  "si_params": {"save_preprocessed_copy": true, "n_jobs": 8},
+  "postprocessing": {
+    "extensions": {"quality_metrics": {}},
+    "export": null,
+    "job_kwargs": {"n_jobs": 8}
+  }
+}
+```
+
+- Only `clustering_method`, `sorter_version`, `sorter_params`, `si_params` and `postprocessing` are allowed at
+  the top level. `clustering_method` is one of the keys of `config.si_sorters` (`kilosort2`, `kilosort2_5`,
+  `kilosort3`, `kilosort4`, `mountainsort5`, `spykingcircus2`, `tridesclous2`, `lupin`, `simple`).
+- **sorter_params:** the sorter's own settings. For Kilosort 4 only Kilosort settings are accepted;
+  `n_chan_bin` and `fs` come from the recording.
+- **preprocessing:** (optional) a SpikeInterface step list applied lazily before the sort; see "The whole run
+  through SpikeInterface, from one paramset" above.
+- **resources:** (optional) what the cluster job should ask slurm for, e.g.
+  `{"cpus": 16, "gpus": 1, "mem": "120G", "time": "12:00:00"}`. U19-pipeline-python reads it when it writes
+  the slurm file; this repo ignores it and takes its worker count from the cores slurm granted. Without it a
+  SpikeInterface job asks for the largest `n_jobs` named in its paramsets, or the cluster default (4 cores
+  and 1 GPU on spock). `"gpus": 0` is for
+  sorters that do not use a GPU. Kilosort uses one GPU however many are requested.
+- **si_params:** SpikeInterface's options for the sorter wrapper (for Kilosort 4: `do_correction`,
+  `skip_kilosort_preprocessing`, `save_preprocessed_copy`, `delete_recording_dat`, ...) and job kwargs
+  (`n_jobs`, ...). For the other sorters SpikeInterface does not separate the two, so either namespace takes
+  any of the wrapper's params.
+- A key in the wrong namespace, an unknown key, a key in both, or a `run_sorter` argument the job sets itself
+  (`folder`, `singularity_image`, ...) fails the job before sorting starts.
+- For the Kilosort sorters `delete_recording_dat` defaults to `true`, so SpikeInterface's raw-sized
+  `recording.dat` copy does not stay in the output.
+- After a motion-correction step, Kilosort 2.5/3/4 get `do_correction=false` (see `disable_sorter_drift`).
+
+`clustering_method: "SpikeInterface"` is not a sorter: it used to skip sorting and leave an empty output folder,
+and now fails the job with a message saying to name the sorter and use `sorter_params`.
+
+#### `postprocessing` (namespaced paramsets only)
+
+- **extensions:** `{name: kwargs}` of sorting analyzer extensions to compute (`quality_metrics`,
+  `template_metrics`, ...). The extensions they depend on are added.
+- **export:** `"phy"` or `null`. A Kilosort sorter's own folder already is the phy folder, so nothing is
+  exported over it; the other sorters are always exported to phy, whatever this says.
+- **job_kwargs:** SpikeInterface job kwargs for the analyzer and the export.
+
+Postprocessing runs when `postprocessing` is not empty or the sorter is not Kilosort.
+
+#### Output layout
+
+`<clustering_method>_output/` is the Kilosort/phy folder U19-pipeline-python loads, whichever path made it:
+
+- Kilosort through SpikeInterface: the sorter's phy files are moved up from SpikeInterface's `sorter_output/`
+  into `<clustering_method>_output/`, and `params.py` is repointed at their new place.
+- Other sorters: the sorting is exported to phy there and adjusted to what the DataJoint element's Kilosort
+  reader and the IBL step expect: dense `templates.npy` with `templates_ind.npy`, identity
+  `whitening_mat.npy`/`whitening_mat_inv.npy`, `cluster_group.tsv` labels `unsorted` replaced by `mua`, and
+  positive `amplitudes.npy`.
+- SpikeInterface's own files are in `<clustering_method>_output/spikeinterface/`: the `run_sorter` log and
+  params (and, for the other sorters, their native `sorter_output/`), the motion folder of a lazy
+  `correct_motion` step, the sorting analyzer (`analyzer/`) and `quality_metrics.csv` / `template_metrics.csv`.
+  No `metrics.csv` is written next to the phy files, since the element reads that file as a sign that ecephys
+  quality control ran.
 
 ### Tiger cluster directory organization
 

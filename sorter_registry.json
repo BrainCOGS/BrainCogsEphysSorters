@@ -1,0 +1,40 @@
+{
+    "kilosort4@4.1.7": {
+        "mode": "native",
+        "sorter": "kilosort4",
+        "version": "4.1.7",
+        "description": "Kilosort 4.1.7 from the job's uv environment (uv.lock)"
+    },
+    "kilosort2@2.0.2": {
+        "mode": "container",
+        "sorter": "kilosort2",
+        "image": "docker://spikeinterface/kilosort2-compiled-base@sha256:1690efce96494cf12a53f8f4521f9fafa2c2d171768c5d92d0000a25b0b07aec",
+        "sif": "kilosort2-compiled-base_2.0.2_cuda-11.2.2_si-0.104.8.sif",
+        "spikeinterface": "0.104.8",
+        "description": "spikeinterface/kilosort2-compiled-base:2.0.2_cuda-11.2.2 (digest-pinned) + spikeinterface 0.104.8"
+    },
+    "kilosort2_5@2.5.2": {
+        "mode": "container",
+        "sorter": "kilosort2_5",
+        "image": "docker://spikeinterface/kilosort2_5-compiled-base@sha256:09f74d35fe2b552d30f273b14bea2ec50fe3774d3ba0b2a0a04a946f3ec311bf",
+        "sif": "kilosort2_5-compiled-base_2.5.2_cuda-11.2.2_si-0.104.8.sif",
+        "spikeinterface": "0.104.8",
+        "description": "spikeinterface/kilosort2_5-compiled-base:2.5.2_cuda-11.2.2 (digest-pinned) + spikeinterface 0.104.8"
+    },
+    "kilosort3@3.0.2": {
+        "mode": "container",
+        "sorter": "kilosort3",
+        "image": "docker://spikeinterface/kilosort3-compiled-base@sha256:cdeed2eb87bc6078f7414856072ef3d269cf65b9abf21f5638f7692dc7cc2c4f",
+        "sif": "kilosort3-compiled-base_3.0.2_cuda-11.2.2_si-0.104.8.sif",
+        "spikeinterface": "0.104.8",
+        "description": "spikeinterface/kilosort3-compiled-base:3.0.2_cuda-11.2.2 (digest-pinned) + spikeinterface 0.104.8"
+    },
+    "kilosort4@4.1.7-cuda12.0.0": {
+        "mode": "container",
+        "sorter": "kilosort4",
+        "image": "docker://spikeinterface/kilosort4-base@sha256:5c2d49a0d945144dc104ef46b306b6afafc4351478caa95f84224e5966c4427c",
+        "sif": "kilosort4-base_4.1.7_cuda-12.0.0_si-0.104.8.sif",
+        "spikeinterface": "0.104.8",
+        "description": "spikeinterface/kilosort4-base:4.1.7_cuda-12.0.0 (digest-pinned) + spikeinterface 0.104.8"
+    }
+}

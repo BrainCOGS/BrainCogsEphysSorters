@@ -4,7 +4,7 @@ import pathlib
 import u19_sorting.postprocess_wrappers as ppw
 import u19_sorting.preprocess_wrappers as pw
 import u19_sorting.sorter_wrappers as sw
-from u19_sorting import config
+from u19_sorting import config, job_spec
 
 # sbatch --export=recording_process_id=26,raw_data_directory='jjulian/jjulian_jj048/01162022/jjulian_jj048_01162022_g0/jjulian_jj048_01162022_g0_imec0',processed_data_directory='jjulian/jjulian_jj048/01162022/jjulian_jj048_01162022_g0/jjulian_jj048_01162022_g0_imec0/recording_process_id_26',repository_dir='/scratch/gpfs/BRAINCOGS/electrophysiology_processing/BrainCogsEphysSorters',process_script_path='main_script.py' slurm_real.slurm
 
@@ -33,14 +33,17 @@ print("recording_process_id", recording_process_id)
 print("processed_data_directory", processed_data_directory)
 
 
+# Both parameter files, normalized once; cross-stage rules are resolved in there
+spec = job_spec.load_job_spec(recording_process_id)
+
 # Preprocess main
 new_raw_data_directory = pw.preprocess_main(
-    recording_process_id, raw_data_directory, processed_data_directory
+    recording_process_id, raw_data_directory, processed_data_directory, spec
 )
 
-# Sort main
+# Sort main (a namespaced paramset also runs its SpikeInterface postprocessing here)
 sorter_processed_directory = sw.sorter_main(
-    recording_process_id, new_raw_data_directory, processed_data_directory
+    recording_process_id, new_raw_data_directory, processed_data_directory, spec
 )
 
 # Delete unnecesary results directory
