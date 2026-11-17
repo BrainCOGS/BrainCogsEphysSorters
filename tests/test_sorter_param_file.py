@@ -24,11 +24,11 @@ def job(tmp_path, monkeypatch):
     monkeypatch.setattr(
         config, "process_parameter_file", str(params_dir / "process_paramset_{}.json")
     )
-    monkeypatch.setattr(
-        config, "chanmap_file", str(tmp_path / "chanmap_{}.mat")
-    )
+    monkeypatch.setattr(config, "chanmap_file", str(tmp_path / "chanmap_{}.mat"))
     monkeypatch.setattr(sw.pw, "preprocess_tool_params", lambda *a: None)
-    monkeypatch.setattr(sw, "params_file_for_different_os", lambda *a: None, raising=False)
+    monkeypatch.setattr(
+        sw, "params_file_for_different_os", lambda *a: None, raising=False
+    )
 
     calls = []
 
