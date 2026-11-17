@@ -83,8 +83,9 @@ def job(tmp_path, monkeypatch):
             json.dump(params, f)
 
     def read_params(rp_id=1):
-        with open(config.process_parameter_file.format(rp_id)) as f:
-            return json.load(f)
+        # what the legacy sorter was handed (the job's own file stays as written)
+        (path,) = j.processed.glob("*_output/sorter_params.json")
+        return json.loads(path.read_text())
 
     def run(rp_id=1):
         return sw.sorter_main(rp_id, j.raw, j.processed)

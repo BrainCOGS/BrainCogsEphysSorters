@@ -82,6 +82,11 @@ def job(tmp_path, monkeypatch):
         def process_file(self):
             return json.loads((params_dir / "process_paramset_1.json").read_text())
 
+        def sorter_file(self, method="kilosort4"):
+            """What a legacy sorter was handed: <method>_output/sorter_params.json."""
+            path = self.processed / f"{method}_output" / "sorter_params.json"
+            return json.loads(path.read_text())
+
         def preprocess(self):
             return pw.preprocess_main(1, self.raw, self.processed)
 
@@ -150,15 +155,17 @@ def test_partial_results_of_repeated_methods_are_removed(job):
 # ------------------------------------------------------------------- legacy vs namespaced
 
 
-def test_legacy_kilosort4_runs_the_native_call_with_the_rewritten_file(job):
+def test_legacy_kilosort4_runs_the_native_call_with_its_own_param_file(job):
     job.write([{"catgt": CATGT}], LEGACY)
     out = job.sort()
     assert [c[0] for c in job.calls] == ["ks4"]
     raw, output_dir, params_file, chanmap = job.calls[0][1]
     assert (raw, output_dir) == (job.raw, job.processed / "kilosort4_output")
-    assert params_file == config.process_parameter_file.format(1)
+    assert params_file == (output_dir / "sorter_params.json").as_posix()
     assert chanmap == config.chanmap_file.format(1)
-    assert job.process_file() == {"n_chan_bin": 385}
+    assert job.sorter_file() == {"n_chan_bin": 385}
+    # the job's own file is left as written, so a rerun can read it again
+    assert job.process_file() == LEGACY
     assert out == job.processed / "kilosort4_output"
 
 
@@ -176,14 +183,14 @@ def test_legacy_sorters_get_their_drift_turned_off_after_dredge(
     job.write([{"dredge": {}}], {"clustering_method": method, "a": 1})
     job.sort()
     assert [c[0] for c in job.calls] == [runner]
-    assert job.process_file() == expected
+    assert job.sorter_file(method) == expected
 
 
 def test_legacy_sorter_after_a_spikeinterface_motion_step(job):
     steps = {"steps": [{"name": "correct_motion", "kwargs": {}}]}
     job.write([{"spikeinterface": steps}], LEGACY)
     job.sort()
-    assert job.process_file() == {"n_chan_bin": 385, "nblocks": 0}
+    assert job.sorter_file() == {"n_chan_bin": 385, "nblocks": 0}
 
 
 def test_namespaced_paramset_runs_through_spikeinterface(job):

@@ -2,6 +2,7 @@ import importlib.metadata
 import json
 import pathlib
 import subprocess
+import tempfile
 
 from u19_sorting import config, job_spec, si_wrappers, sorter_registry
 from u19_sorting.utils import write_file
@@ -97,9 +98,6 @@ def run_legacy_sorter(
 ):
     """A flat paramset: every key but clustering_method goes to the sorter, as it always has."""
 
-    process_parameters_filename = config.process_parameter_file.format(
-        recording_process_id
-    )
     chanmap_filename = config.chanmap_file.format(recording_process_id)
     sorter = config.sorters_names[sorting.clustering_method]
     in_container = resolved is not None and resolved.entry.mode == "container"
@@ -119,11 +117,15 @@ def run_legacy_sorter(
             sorter,
         )
 
-    # The MATLAB sorters and Kilosort 4 read their settings from this file, which must not
-    # hold clustering_method / sorter_version (Kilosort 4 rejects unknown keys).
+    # The sorter reads its settings from a file next to its output, which must not hold
+    # clustering_method / sorter_version (Kilosort 4 rejects unknown keys). The job's own
+    # parameter file stays as written, so a rerun can read it again.
     params_text = json.dumps(process_parameters)
     print("new params")
     print(params_text)
+    process_parameters_filename = pathlib.Path(
+        sorter_processed_directory, "sorter_params.json"
+    ).as_posix()
     write_file(process_parameters_filename, params_text)
 
     if in_container:
@@ -246,6 +248,27 @@ def write_provenance(resolved, sorter_processed_directory):
         json.dump(provenance, f, indent=4)
 
 
+def run_matlab(command):
+    """Run a MATLAB shell command; return (returncode, stdout, stderr) once MATLAB exits.
+
+    MATLAB's output goes to files, not pipes. MATLAB (R2024a) starts a MathWorksServiceHost
+    daemon that outlives it and inherits its stdout and stderr; with pipes, reading them
+    only ends when that daemon does, so a finished sort kept the job waiting until slurm's
+    time limit.
+    """
+
+    with (
+        tempfile.TemporaryFile(mode="w+", errors="replace") as out,
+        tempfile.TemporaryFile(mode="w+", errors="replace") as err,
+    ):
+        p = subprocess.run(
+            command, shell=True, stdin=subprocess.DEVNULL, stdout=out, stderr=err
+        )
+        out.seek(0)
+        err.seek(0)
+        return p.returncode, out.read(), err.read()
+
+
 class Kilosort2:
     """Kilosort2 caller functions"""
 
@@ -273,13 +296,13 @@ class Kilosort2:
             chanmap_filename,
         )
         print("ks2_command .....", ks2_command)
-        p = subprocess.run(ks2_command, text=True, shell=True, capture_output=True)
+        returncode, stdout, stderr = run_matlab(ks2_command)
 
-        print("stderr here", p.stderr)
-        print("stdout", p.stdout)
+        print("stderr here", stderr)
+        print("stdout", stdout)
 
-        if p.returncode:
-            raise Exception(p.stderr)
+        if returncode:
+            raise Exception(stderr)
 
     '''
     @staticmethod
@@ -371,13 +394,13 @@ class Kilosort3:
         )
         print("ks_command .....", ks_command)
         print("kilosort3 here .............................")
-        p = subprocess.run(ks_command, text=True, shell=True, capture_output=True)
+        returncode, stdout, stderr = run_matlab(ks_command)
 
-        print("stderr here", p.stderr)
-        print("stdout", p.stdout)
+        print("stderr here", stderr)
+        print("stdout", stdout)
 
-        if p.returncode:
-            raise Exception(p.stderr)
+        if returncode:
+            raise Exception(stderr)
 
     @staticmethod
     def create_Kilosort3_command(
