@@ -12,6 +12,7 @@ import pytest
 MODULES = [
     "u19_sorting",
     "u19_sorting.config",
+    "u19_sorting.apptainer_exec",
     "u19_sorting.utils",
     "u19_sorting.preprocess_wrappers",
     "u19_sorting.sorter_wrappers",

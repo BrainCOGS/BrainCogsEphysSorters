@@ -137,6 +137,26 @@ A process parameter file can pin the sorter build with a `sorter_version` key fr
 - Unknown keys, a `clustering_method` that doesn't match the key, or an image that isn't cached fail the job
   before sorting starts. What ran is recorded in `sorter_provenance.json` next to the sorter output.
 
+##### Building container images on spock
+
+`python -m u19_sorting.apptainer_cache` (below) cannot build the Kilosort images: they ship Python 3.9
+and `spikeinterface` >= 0.104 needs Python >= 3.10, and on spock its `%post` step fails anyway (no
+`/etc/subuid` entry, so Apptainer falls back to its bundled fakeroot: `GLIBC_2.34' not found (required
+by /.singularity.d/libs/faked)`). Use `scripts/sorter_image.sh` instead, from the checkout with `.venv`
+synced:
+
+```
+scripts/sorter_image.sh fetch kilosort2@2.0.2          # login node: layers + wheels into the caches
+sbatch scripts/sorter_image.sh build kilosort2@2.0.2   # compute node, offline, ~6 min
+```
+
+The image gets a uv Python 3.13 venv with the `spikeinterface`, `neo`, `probeinterface` and `numpy`
+versions of `.venv`, first on `PATH`; the sorter keeps the image's own runtime. Unpacking and packing
+are done on the node's local disk: on the login VM or on NFS they take hours. Jobs run each command
+in the image with `apptainer exec` (`u19_sorting/apptainer_exec.py`) rather than in the Apptainer
+instance SpikeInterface would start: on spock such instances were killed seconds into the sort on some
+nodes.
+
 ##### Caching container images (login node)
 
 Compute nodes have no internet, so they never pull images. Build them once on a login node into shared storage:
@@ -156,8 +176,12 @@ cluster requires it for `apptainer build`.
 | Setting | Default | Override |
 |---|---|---|
 | Registry | `sorter_registry.json` in this repo | `U19_SORTER_REGISTRY` |
-| Images (`.sif`) | `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif` | `U19_APPTAINER_SIF_DIR` |
-| Apptainer layer cache | `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/cache` | `U19_APPTAINER_CACHEDIR` |
+| Images (`.sif`) | `apptainer/sif` next to the checkout: `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif` on della, `AutomaticPipelineProcessing/electrophysiology_processing/apptainer/sif` on spock | `U19_APPTAINER_SIF_DIR` |
+| Apptainer layer cache | `apptainer/cache` next to the checkout | `U19_APPTAINER_CACHEDIR` |
+
+Each container entry pins the `spikeinterface` version that `uv.lock` installs on the host (a test checks
+this): the host serializes the recording and the image's SpikeInterface loads it. After a lock update that
+changes `spikeinterface`, add new entries (new `.sif` names) for the new version and build them.
 
 To add a version: append a new key to `sorter_registry.json` (never edit or reuse an existing key, since past
 jobs' provenance points at it), then run `python -m u19_sorting.apptainer_cache <key>` on a login node.

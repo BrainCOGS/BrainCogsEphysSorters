@@ -98,10 +98,18 @@ preproc_tools_delete_post = [
 # "sorter_version" in the process params; override the path with U19_SORTER_REGISTRY.
 sorter_registry_file = pathlib.Path(repository_dir, "sorter_registry.json").as_posix()
 
+
 # Apptainer images for containerized sorters. Built once on a login node (internet) by
 # `python -m u19_sorting.apptainer_cache`; compute nodes only read the .sif files.
 # Override with U19_APPTAINER_SIF_DIR / U19_APPTAINER_CACHEDIR.
-apptainer_sif_dir = "/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif"
-apptainer_cache_dir = (
-    "/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/cache"
-)
+def apptainer_dirs(processing_dir):
+    """(sif dir, apptainer layer cache) next to the checkout, in <processing_dir>/apptainer.
+
+    On della that is /scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer; on
+    spock it is AutomaticPipelineProcessing/electrophysiology_processing/apptainer.
+    """
+    apptainer_dir = pathlib.Path(processing_dir, "apptainer")
+    return (apptainer_dir / "sif").as_posix(), (apptainer_dir / "cache").as_posix()
+
+
+apptainer_sif_dir, apptainer_cache_dir = apptainer_dirs(ephys_processing_dir)

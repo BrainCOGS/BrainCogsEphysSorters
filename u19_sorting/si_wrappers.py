@@ -18,7 +18,7 @@ import pathlib
 import re
 import shutil
 
-from u19_sorting import config, job_spec
+from u19_sorting import apptainer_exec, config, job_spec
 
 # Subfolder of <clustering_method>_output that holds SpikeInterface's own files.
 SI_SUBDIR = "spikeinterface"
@@ -462,7 +462,11 @@ def run_sorter(sorting_spec, resolved, raw_directory, output_directory):
     kwargs.update(sorter_params)
     kwargs.update(si_params)
 
-    sorting = ss.run_sorter(recording=recording, **kwargs)
+    if resolved is not None and resolved.entry.mode == "container":
+        with apptainer_exec.exec_instead_of_instances():
+            sorting = ss.run_sorter(recording=recording, **kwargs)
+    else:
+        sorting = ss.run_sorter(recording=recording, **kwargs)
     adopt_sorter_folder(work, output_directory, flatten=is_kilosort(sorter_name))
     return recording, sorting
 
