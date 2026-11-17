@@ -12,10 +12,17 @@ CONTAINER = {
     "mode": "container",
     "sorter": "kilosort3",
     "image": "docker://spikeinterface/kilosort3-compiled-base:0.2.0",
-    "sif": "ks3_0.2.0.sif",
-    "spikeinterface": "0.104.8",
+    "digest": "sha256:" + "a" * 64,
 }
 NATIVE = {"mode": "native", "sorter": "kilosort4", "version": "4.1.7"}
+# The SpikeInterface "installed" in these tests, and the image file named after it.
+HOST_SI = "0.104.8"
+SIF = "kilosort3-compiled-base_0.2.0_si-0.104.8.sif"
+
+
+@pytest.fixture(autouse=True)
+def host_spikeinterface(monkeypatch):
+    monkeypatch.setattr(sr, "installed_spikeinterface", lambda: HOST_SI)
 
 
 @pytest.fixture
@@ -44,19 +51,32 @@ class FakeApptainer:
 
 
 def test_definition_bakes_in_pinned_spikeinterface(entry):
-    text = ac.definition_file_text(entry)
+    text = ac.definition_file_text(entry, HOST_SI)
     assert "Bootstrap: docker" in text
-    # `From:` takes the reference without the docker:// scheme
-    assert "From: spikeinterface/kilosort3-compiled-base:0.2.0" in text
+    # `From:` takes the digest-pinned reference without the docker:// scheme
+    assert "From: spikeinterface/kilosort3-compiled-base@sha256:" + "a" * 64 in text
     assert "docker://" not in text.split("%labels")[0]
     # [full] like SpikeInterface's own in-container install: the Kilosort wrappers need scipy
     assert '"spikeinterface[full]==0.104.8"' in text
     assert "u19.sorter_version kilosort3@0.2.0" in text
 
 
+def test_cache_entry_names_the_image_after_the_spikeinterface(entry, tmp_path):
+    runner = FakeApptainer()
+    ac.cache_entry(
+        entry,
+        sif_dir=tmp_path,
+        cache_dir=tmp_path / "c",
+        runner=runner,
+        spikeinterface_version="0.106.0",
+    )
+    assert (tmp_path / "kilosort3-compiled-base_0.2.0_si-0.106.0.sif").is_file()
+    assert "0.106.0" in ac.definition_file_text(entry, "0.106.0")
+
+
 def test_definition_rejects_native_entry():
     with pytest.raises(ValueError):
-        ac.definition_file_text(sr.parse_entry("kilosort4@4.1.7", NATIVE))
+        ac.definition_file_text(sr.parse_entry("kilosort4@4.1.7", NATIVE), HOST_SI)
 
 
 def test_build_command(entry, tmp_path):
@@ -83,12 +103,12 @@ def test_cache_entry_builds_into_sif_dir(entry, tmp_path):
     status = ac.cache_entry(entry, sif_dir=sif_dir, cache_dir=cache_dir, runner=runner)
 
     assert status == "built"
-    final = sif_dir / CONTAINER["sif"]
+    final = sif_dir / SIF
     assert final.read_bytes() == b"SIF"
     # immutable once cached
     assert not (final.stat().st_mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
     # no partial / def leftovers
-    assert sorted(p.name for p in sif_dir.iterdir()) == [CONTAINER["sif"]]
+    assert sorted(p.name for p in sif_dir.iterdir()) == [SIF]
     # layer cache pointed at shared storage for both apptainer and legacy singularity
     env = runner.calls[0]["env"]
     assert env["APPTAINER_CACHEDIR"] == str(cache_dir)
@@ -100,25 +120,25 @@ def test_cache_entry_builds_to_partial_then_renames(entry, tmp_path):
     runner = FakeApptainer()
     ac.cache_entry(entry, sif_dir=tmp_path, cache_dir=tmp_path / "c", runner=runner)
     built_to = runner.calls[0]["cmd"][-2]
-    assert built_to != str(tmp_path / CONTAINER["sif"])
+    assert built_to != str(tmp_path / SIF)
     # built under the sif dir (same filesystem) so the final rename is atomic
     assert os.path.commonpath([built_to, str(tmp_path)]) == str(tmp_path)
 
 
 def test_cache_entry_skips_existing_image(entry, tmp_path):
-    (tmp_path / CONTAINER["sif"]).write_bytes(b"OLD")
+    (tmp_path / SIF).write_bytes(b"OLD")
     runner = FakeApptainer()
     assert (
         ac.cache_entry(entry, sif_dir=tmp_path, cache_dir=tmp_path / "c", runner=runner)
         == "cached"
     )
     assert runner.calls == []
-    assert (tmp_path / CONTAINER["sif"]).read_bytes() == b"OLD"
+    assert (tmp_path / SIF).read_bytes() == b"OLD"
 
 
 def test_cache_entry_rebuilds_empty_leftover(entry, tmp_path):
     # A 0-byte file can only come from a broken copy; resolve() refuses it, so rebuild.
-    leftover = tmp_path / CONTAINER["sif"]
+    leftover = tmp_path / SIF
     leftover.write_bytes(b"")
     runner = FakeApptainer()
     assert (
@@ -160,7 +180,7 @@ def test_cache_entry_success_without_output_raises(entry, tmp_path):
             cache_dir=tmp_path / "c",
             runner=FakeApptainer(write=False),
         )
-    assert not (tmp_path / CONTAINER["sif"]).exists()
+    assert not (tmp_path / SIF).exists()
 
 
 def test_cache_entry_native_is_noop(tmp_path):
@@ -207,7 +227,7 @@ def test_cli_check_reports_missing(registry_file, tmp_path, capsys):
 
 def test_cli_check_passes_when_cached(registry_file, tmp_path):
     (tmp_path / "sif").mkdir()
-    (tmp_path / "sif" / CONTAINER["sif"]).write_bytes(b"SIF")
+    (tmp_path / "sif" / SIF).write_bytes(b"SIF")
     assert cli(registry_file, tmp_path, "--check") == 0
 
 
@@ -215,7 +235,7 @@ def test_cli_builds_all_container_entries(registry_file, tmp_path):
     runner = FakeApptainer()
     assert cli(registry_file, tmp_path, runner=runner) == 0
     assert len(runner.calls) == 1
-    assert (tmp_path / "sif" / CONTAINER["sif"]).is_file()
+    assert (tmp_path / "sif" / SIF).is_file()
 
 
 def test_cli_unknown_key_refused(registry_file, tmp_path):

@@ -1,5 +1,6 @@
 #!/bin/bash
-# Build the Apptainer image of a container entry of sorter_registry.json, without root.
+# Build the Apptainer image of a container entry of sorter_registry.json, without root, for
+# the spikeinterface installed in .venv: the image is <name>_<tag>_si-<that version>.sif.
 #
 #   scripts/sorter_image.sh fetch <key>           # login node (internet), ~10 min
 #   sbatch scripts/sorter_image.sh build <key>    # compute node (offline), ~6 min
@@ -42,7 +43,7 @@ import u19_sorting.sorter_registry as sr
 entry = sr.load_registry()[sys.argv[1]]
 if entry.mode != "container":
     sys.exit(f"{entry.key} is a {entry.mode} entry, it has no image")
-print(entry.image, entry.sif, sr.default_sif_dir(), ac.default_cache_dir())
+print(entry.pull_ref, entry.sif_name(sr.installed_spikeinterface()), sr.default_sif_dir(), ac.default_cache_dir())
 PY
 )
 spikeinterface=$("$py" -c "import importlib.metadata as m; print(m.version('spikeinterface'))")

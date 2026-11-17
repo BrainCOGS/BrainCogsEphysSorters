@@ -6,8 +6,9 @@ Run on a login node (compute nodes have no internet), after adding a registry en
     python -m u19_sorting.apptainer_cache kilosort3@3.0.2
     python -m u19_sorting.apptainer_cache --check      # exit 1 if any image is missing
 
-Each image is the registry's pinned docker image plus the pinned SpikeInterface, so a
-job can run it with installation_mode="no-install" and never touch the network.
+Each image is the registry's digest-pinned docker image plus the SpikeInterface installed
+here (the image file name says which), so a job can run it with installation_mode="no-install"
+and never touch the network.
 Images are built to a temporary file and renamed into place read-only; an existing
 image is never rebuilt or overwritten.
 """
@@ -30,7 +31,7 @@ def default_cache_dir():
     )
 
 
-def definition_file_text(entry):
+def definition_file_text(entry, spikeinterface_version):
     """Apptainer definition: the pinned base image with SpikeInterface installed on top."""
 
     if entry.mode != "container":
@@ -40,15 +41,15 @@ def definition_file_text(entry):
 
     return (
         "Bootstrap: docker\n"
-        f"From: {entry.image[len('docker://') :]}\n"
+        f"From: {entry.pull_ref[len('docker://') :]}\n"
         "\n"
         "%post\n"
-        f'    python -m pip install --no-cache-dir "spikeinterface[full]=={entry.spikeinterface}"\n'
+        f'    python -m pip install --no-cache-dir "spikeinterface[full]=={spikeinterface_version}"\n'
         "\n"
         "%labels\n"
         f"    u19.sorter_version {entry.key}\n"
-        f"    u19.base_image {entry.image}\n"
-        f"    u19.spikeinterface {entry.spikeinterface}\n"
+        f"    u19.base_image {entry.pull_ref}\n"
+        f"    u19.spikeinterface {spikeinterface_version}\n"
     )
 
 
@@ -60,18 +61,28 @@ def build_command(out_sif, definition_file, fakeroot=False):
 
 
 def cache_entry(
-    entry, sif_dir, cache_dir, runner=subprocess.run, dry_run=False, fakeroot=False
+    entry,
+    sif_dir,
+    cache_dir,
+    runner=subprocess.run,
+    dry_run=False,
+    fakeroot=False,
+    spikeinterface_version=None,
 ):
     """Build one registry entry's image into sif_dir unless it is already there.
 
+    The image gets spikeinterface_version (default: the one installed here).
     Returns 'native' (nothing to build), 'cached', 'would-build' (dry run) or 'built'.
     """
 
     if entry.mode != "container":
         return "native"
 
+    if spikeinterface_version is None:
+        spikeinterface_version = sr.installed_spikeinterface()
+    sif = entry.sif_name(spikeinterface_version)
     sif_dir, cache_dir = pathlib.Path(sif_dir), pathlib.Path(cache_dir)
-    final_sif = sif_dir / entry.sif
+    final_sif = sif_dir / sif
     # A 0-byte file is a broken copy that resolve() refuses, so it is rebuilt.
     if final_sif.is_file() and final_sif.stat().st_size > 0:
         return "cached"
@@ -84,12 +95,12 @@ def cache_entry(
     # Build next to the final image (same filesystem) so the rename into place is atomic and
     # a job never sees a half-written image.
     build_dir = pathlib.Path(
-        tempfile.mkdtemp(prefix=".build-" + entry.sif + "-", dir=sif_dir)
+        tempfile.mkdtemp(prefix=".build-" + sif + "-", dir=sif_dir)
     )
     try:
         definition_file = build_dir / "image.def"
-        definition_file.write_text(definition_file_text(entry))
-        partial_sif = build_dir / entry.sif
+        definition_file.write_text(definition_file_text(entry, spikeinterface_version))
+        partial_sif = build_dir / sif
 
         env = dict(os.environ)
         env["APPTAINER_CACHEDIR"] = str(cache_dir)
@@ -172,7 +183,12 @@ def main(argv=None, runner=subprocess.run):
                 sr.resolve(key, registry=registry, sif_dir=sif_dir)
             except sr.MissingSorterImageError:
                 missing.append(key)
-                print("MISSING", key, "->", sif_dir / registry[key].sif)
+                print(
+                    "MISSING",
+                    key,
+                    "->",
+                    sif_dir / registry[key].sif_name(sr.installed_spikeinterface()),
+                )
         if not missing:
             print("all", len(keys), "images cached in", sif_dir)
         return 1 if missing else 0

@@ -14,9 +14,10 @@ CONTAINER = {
     "mode": "container",
     "sorter": "kilosort3",
     "image": "docker://spikeinterface/kilosort3-compiled-base:0.2.0",
-    "sif": "ks3_0.2.0.sif",
-    "spikeinterface": "0.104.8",
+    "digest": "sha256:" + "a" * 64,
 }
+# The image of CONTAINER built for the SpikeInterface the job fixture installs.
+SIF = "kilosort3-compiled-base_0.2.0_si-0.104.8.sif"
 
 
 @pytest.fixture
@@ -154,7 +155,7 @@ def test_native_version_not_installed_refuses_to_run(job):
 
 
 def test_container_version_runs_cached_sif(job):
-    sif = job.sif_dir / CONTAINER["sif"]
+    sif = job.sif_dir / SIF
     sif.write_bytes(b"SIF")
     job.write_params(
         {
@@ -178,11 +179,25 @@ def test_container_version_runs_cached_sif(job):
     assert prov["sif_path"] == str(sif.resolve())
 
 
+def test_container_spikeinterface_patch_difference_warns_and_runs(job):
+    (job.sif_dir / SIF).write_bytes(b"SIF")
+    job.installed["spikeinterface"] = "0.104.9"
+    job.write_params(
+        {"clustering_method": "kilosort3", "sorter_version": "kilosort3@0.2.0"}
+    )
+    with pytest.warns(sr.SorterImageVersionWarning, match="0.104.9"):
+        out = job.run()
+    assert [c[0] for c in job.calls] == ["container"]
+    prov = provenance(out)
+    assert prov["spikeinterface"] == "0.104.8"
+    assert prov["host_spikeinterface"] == "0.104.9"
+
+
 @pytest.mark.parametrize("host_si", ["0.105.0", None])
 def test_container_spikeinterface_mismatch_refuses_to_run(job, host_si):
     # The host serializes the recording and the in-image SpikeInterface loads it back:
-    # the two versions must match.
-    (job.sif_dir / CONTAINER["sif"]).write_bytes(b"SIF")
+    # another minor release (or none at all) is refused.
+    (job.sif_dir / SIF).write_bytes(b"SIF")
     if host_si is None:
         del job.installed["spikeinterface"]
     else:
@@ -213,7 +228,7 @@ def test_unknown_sorter_version_refused(job, key):
 
 
 def test_sorter_version_must_match_clustering_method(job):
-    (job.sif_dir / CONTAINER["sif"]).write_bytes(b"SIF")
+    (job.sif_dir / SIF).write_bytes(b"SIF")
     job.write_params(
         {"clustering_method": "kilosort4", "sorter_version": "kilosort3@0.2.0"}
     )
@@ -226,9 +241,14 @@ def test_sorter_version_must_match_clustering_method(job):
 
 
 def test_container_run_sorter_kwargs_are_offline(tmp_path):
-    (tmp_path / CONTAINER["sif"]).write_bytes(b"SIF")
+    (tmp_path / SIF).write_bytes(b"SIF")
     registry = {"kilosort3@0.2.0": sr.parse_entry("kilosort3@0.2.0", CONTAINER)}
-    resolved = sr.resolve("kilosort3@0.2.0", registry=registry, sif_dir=tmp_path)
+    resolved = sr.resolve(
+        "kilosort3@0.2.0",
+        registry=registry,
+        sif_dir=tmp_path,
+        spikeinterface_version="0.104.8",
+    )
 
     kwargs = sw.SpikeInterfaceContainer.run_sorter_kwargs(
         resolved, tmp_path / "out", {"detect_threshold": 6}
@@ -236,7 +256,7 @@ def test_container_run_sorter_kwargs_are_offline(tmp_path):
 
     assert kwargs["sorter_name"] == "kilosort3"
     # absolute local path, never a docker:// reference => SpikeInterface never pulls
-    assert kwargs["singularity_image"] == str((tmp_path / CONTAINER["sif"]).resolve())
+    assert kwargs["singularity_image"] == str((tmp_path / SIF).resolve())
     # SpikeInterface is baked into the cached image; "auto" would pip install from GitHub
     assert kwargs["installation_mode"] == "no-install"
     assert kwargs["folder"] == str(tmp_path / "out")
@@ -245,9 +265,14 @@ def test_container_run_sorter_kwargs_are_offline(tmp_path):
 
 
 def test_container_run_sorter_kwargs_reject_reserved_params(tmp_path):
-    (tmp_path / CONTAINER["sif"]).write_bytes(b"SIF")
+    (tmp_path / SIF).write_bytes(b"SIF")
     registry = {"kilosort3@0.2.0": sr.parse_entry("kilosort3@0.2.0", CONTAINER)}
-    resolved = sr.resolve("kilosort3@0.2.0", registry=registry, sif_dir=tmp_path)
+    resolved = sr.resolve(
+        "kilosort3@0.2.0",
+        registry=registry,
+        sif_dir=tmp_path,
+        spikeinterface_version="0.104.8",
+    )
     # a params file must not be able to swap the image or re-enable runtime installs
     for reserved in ("singularity_image", "docker_image", "installation_mode"):
         with pytest.raises(ValueError, match=reserved):
@@ -258,8 +283,16 @@ def test_container_run_sorter_kwargs_reject_reserved_params(tmp_path):
 
 # ----------------------------------------------------------------------------- DREDge + container
 
-KS2 = {**CONTAINER, "sorter": "kilosort2", "sif": "ks2.sif"}
-KS2_5 = {**CONTAINER, "sorter": "kilosort2_5", "sif": "ks2_5.sif"}
+KS2 = {
+    **CONTAINER,
+    "sorter": "kilosort2",
+    "image": "docker://spikeinterface/kilosort2-compiled-base:0.2.0",
+}
+KS2_5 = {
+    **CONTAINER,
+    "sorter": "kilosort2_5",
+    "image": "docker://spikeinterface/kilosort2_5-compiled-base:0.2.0",
+}
 
 
 def enable_dredge(disable_sorter_drift=True, rp_id=1):
@@ -280,8 +313,9 @@ def container_job(job, monkeypatch, tmp_path):
     path = tmp_path / "container_registry.json"
     path.write_text(json.dumps(registry))
     monkeypatch.setenv("U19_SORTER_REGISTRY", str(path))
-    for raw in registry.values():
-        (job.sif_dir / raw["sif"]).write_bytes(b"SIF")
+    for key, raw in registry.items():
+        sif = sr.parse_entry(key, raw).sif_name(job.installed["spikeinterface"])
+        (job.sif_dir / sif).write_bytes(b"SIF")
     return job
 
 
@@ -341,9 +375,14 @@ def container_run(tmp_path, monkeypatch):
     """Real SpikeInterfaceContainer.run with the recording reader and run_sorter faked."""
     ss = pytest.importorskip("spikeinterface.sorters")
 
-    (tmp_path / CONTAINER["sif"]).write_bytes(b"SIF")
+    (tmp_path / SIF).write_bytes(b"SIF")
     registry = {"kilosort3@0.2.0": sr.parse_entry("kilosort3@0.2.0", CONTAINER)}
-    resolved = sr.resolve("kilosort3@0.2.0", registry=registry, sif_dir=tmp_path)
+    resolved = sr.resolve(
+        "kilosort3@0.2.0",
+        registry=registry,
+        sif_dir=tmp_path,
+        spikeinterface_version="0.104.8",
+    )
     seen = {}
 
     def fake_run_sorter(recording, **kwargs):
@@ -394,9 +433,14 @@ def test_container_run_refuses_requirements_not_in_image(container_run):
 def test_container_deletes_recording_copy_by_default(tmp_path):
     # SpikeInterface's KS wrappers copy the whole recording to recording.dat; phy reads
     # temp_wh.dat, so the copy is dead weight the size of the raw data.
-    (tmp_path / CONTAINER["sif"]).write_bytes(b"SIF")
+    (tmp_path / SIF).write_bytes(b"SIF")
     registry = {"kilosort3@0.2.0": sr.parse_entry("kilosort3@0.2.0", CONTAINER)}
-    resolved = sr.resolve("kilosort3@0.2.0", registry=registry, sif_dir=tmp_path)
+    resolved = sr.resolve(
+        "kilosort3@0.2.0",
+        registry=registry,
+        sif_dir=tmp_path,
+        spikeinterface_version="0.104.8",
+    )
     assert (
         sw.SpikeInterfaceContainer.run_sorter_kwargs(resolved, tmp_path, {})[
             "delete_recording_dat"
