@@ -591,6 +591,8 @@ def run_postprocessing(
     extensions = order_extensions(requested)
     print("spikeinterface postprocessing extensions:", list(extensions))
 
+    # Job kwargs go in job_kwargs: as loose keyword arguments SpikeInterface 0.105/0.106
+    # takes them for sparsity arguments and warns that this is deprecated.
     analyzer = si.create_sorting_analyzer(
         sorting,
         recording,
@@ -598,7 +600,7 @@ def run_postprocessing(
         folder=(si_dir / "analyzer").as_posix(),
         sparse=True,
         overwrite=True,
-        **job_kwargs,
+        job_kwargs=job_kwargs,
     )
     if extensions:
         analyzer.compute(extensions, **job_kwargs)
