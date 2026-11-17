@@ -12,20 +12,30 @@ Registry entries (sorter_registry.json, override with U19_SORTER_REGISTRY):
   container: runs through SpikeInterface inside a pre-built Apptainer image.
              {"mode": "container", "sorter": "kilosort3",
               "image": "docker://spikeinterface/kilosort3-compiled-base:<tag>",
-              "sif": "<filename>.sif", "spikeinterface": "0.104.8"}
+              "digest": "sha256:<64 hex>"}
 
-Container images are never pulled on compute nodes (no internet there). They are built on
-a login node into the shared sif dir by `python -m u19_sorting.apptainer_cache`, and a
-missing image is an error here rather than a pull.
+A container entry names only the base image (by tag, for the file name) and its digest (what
+is pulled). The SpikeInterface inside the image is the job's own: the image file is
+"<image name>_<tag>_si-<spikeinterface version>.sif", with the version the job has installed
+(uv.lock), so a SpikeInterface bump needs new images but no registry change. The host
+serializes the recording and the image's SpikeInterface loads it, so resolve() takes the
+image built for the installed version; failing that, one built for another patch release of
+the same minor release (with a warning). An image for another minor release is refused.
+
+Container images are never pulled on compute nodes (no internet there). They are built
+into the shared sif dir by scripts/sorter_image.sh (fetch on a login node, build on a
+compute node), and a missing image is an error here rather than a pull.
 
 Entries are append-only: never change an existing key, add a new one instead.
 """
 
 import dataclasses
+import importlib.metadata
 import json
 import os
 import pathlib
 import re
+import warnings
 
 from u19_sorting import config
 
@@ -33,12 +43,16 @@ NATIVE_SORTERS = {"kilosort4"}
 CONTAINER_SORTERS = {"kilosort2", "kilosort2_5", "kilosort3", "kilosort4"}
 
 _KEY_RE = re.compile(r"^([a-z0-9_]+)@([A-Za-z0-9._+-]+)$")
-_SIF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.sif$")
 _DIGEST_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
+_DIGEST_FIELD_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+# What goes into an image file name: the image name and tag, and a version.
+_NAME_PART_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+# The release segment of a version ("0.105.0" in "0.105.0rc1").
+_RELEASE_RE = re.compile(r"^(\d+)\.(\d+)(?:\.(\d+))?")
 
 _FIELDS = {
     "native": {"mode", "sorter", "version", "description"},
-    "container": {"mode", "sorter", "image", "sif", "spikeinterface", "description"},
+    "container": {"mode", "sorter", "image", "digest", "description"},
 }
 
 
@@ -51,7 +65,39 @@ class UnknownSorterVersionError(SorterRegistryError):
 
 
 class MissingSorterImageError(SorterRegistryError):
-    """The container image for a key has not been cached on shared storage."""
+    """No usable container image for a key is cached on shared storage."""
+
+
+class SorterImageVersionWarning(UserWarning):
+    """The image's SpikeInterface is another patch release than the job's."""
+
+
+def build_commands(key):
+    """How to build a key's image for the installed SpikeInterface (see scripts/sorter_image.sh)."""
+
+    return (
+        f"`scripts/sorter_image.sh fetch {key}` on a login node, then "
+        f"`sbatch scripts/sorter_image.sh build {key}`, from the checkout"
+    )
+
+
+def installed_spikeinterface():
+    """The SpikeInterface version installed in this environment, or None."""
+
+    try:
+        return importlib.metadata.version("spikeinterface")
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+def release(version):
+    """(major, minor, patch) of a version string, or None if it has no such release segment."""
+
+    match = _RELEASE_RE.match(version) if isinstance(version, str) else None
+    if not match:
+        return None
+    major, minor, patch = match.groups()
+    return int(major), int(minor), int(patch or 0)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -61,15 +107,51 @@ class SorterEntry:
     sorter: str
     version: str | None = None
     image: str | None = None
-    sif: str | None = None
-    spikeinterface: str | None = None
+    digest: str | None = None
     description: str | None = None
+
+    @property
+    def pull_ref(self):
+        """The image by digest, the reference that is pulled: docker://<name>@sha256:..."""
+
+        name = self.image.rpartition("/")
+        repository = name[0] + name[1] + name[2].partition(":")[0]
+        return f"{repository}@{self.digest}"
+
+    @property
+    def sif_prefix(self):
+        """'<image name>_<tag>': the part of the image file name that the entry fixes."""
+
+        name, _, tag = self.image.rpartition("/")[2].partition(":")
+        return f"{name}_{tag}"
+
+    def sif_name(self, spikeinterface_version):
+        """File name of this entry's image built with the given SpikeInterface version."""
+
+        if not isinstance(spikeinterface_version, str) or not _NAME_PART_RE.match(
+            spikeinterface_version
+        ):
+            raise SorterRegistryError(
+                f"{self.key}: not a spikeinterface version: {spikeinterface_version!r}"
+            )
+        return f"{self.sif_prefix}_si-{spikeinterface_version}.sif"
+
+    def sif_version(self, filename):
+        """The SpikeInterface version in one of this entry's image file names, or None."""
+
+        head, tail = f"{self.sif_prefix}_si-", ".sif"
+        if not (filename.startswith(head) and filename.endswith(tail)):
+            return None
+        version = filename[len(head) : -len(tail)]
+        return version if release(version) is not None else None
 
 
 @dataclasses.dataclass(frozen=True)
 class ResolvedSorter:
     entry: SorterEntry
     sif_path: pathlib.Path | None = None
+    # SpikeInterface baked into the image (from its file name); None for native entries.
+    spikeinterface: str | None = None
 
     def provenance(self):
         """JSON-able record of exactly what ran, stored next to the sorter output."""
@@ -82,8 +164,8 @@ class ResolvedSorter:
         if self.entry.mode == "native":
             prov["version"] = self.entry.version
         else:
-            prov["image"] = self.entry.image
-            prov["spikeinterface"] = self.entry.spikeinterface
+            prov["image"] = self.entry.pull_ref
+            prov["spikeinterface"] = self.spikeinterface
             prov["sif_path"] = str(self.sif_path)
             if self.sif_path.is_file():
                 prov["sif_size_bytes"] = self.sif_path.stat().st_size
@@ -113,6 +195,15 @@ def is_pinned_docker_image(image):
     # The tag lives in the last path component; a ':' earlier is a registry port.
     name, _, tag = ref.rpartition("/")[2].partition(":")
     return bool(name) and bool(tag) and tag != "latest"
+
+
+def is_tagged_docker_image(image):
+    """docker://<name>:<tag>, no digest, with a tag other than `latest` that can go in a file name."""
+
+    if not is_pinned_docker_image(image) or "@" in image:
+        return False
+    name, _, tag = image.rpartition("/")[2].partition(":")
+    return bool(_NAME_PART_RE.match(name)) and bool(_NAME_PART_RE.match(tag))
 
 
 def parse_entry(key, raw):
@@ -159,18 +250,16 @@ def parse_entry(key, raw):
             raise SorterRegistryError(
                 f"{key}: {sorter} is not a supported container sorter"
             )
-        if not is_pinned_docker_image(raw.get("image")):
+        if not is_tagged_docker_image(raw.get("image")):
             raise SorterRegistryError(
-                f"{key}: image must be a docker:// reference pinned to a tag (not latest) or digest, "
-                f"got {raw.get('image')!r}"
+                f'{key}: image must be "docker://<name>:<tag>" with a tag other than latest '
+                f"(the digest goes in digest), got {raw.get('image')!r}"
             )
-        if not isinstance(raw.get("sif"), str) or not _SIF_RE.match(raw["sif"]):
+        if not isinstance(raw.get("digest"), str) or not _DIGEST_FIELD_RE.match(
+            raw["digest"]
+        ):
             raise SorterRegistryError(
-                f'{key}: sif must be a bare "<name>.sif" filename, got {raw.get("sif")!r}'
-            )
-        if not raw.get("spikeinterface"):
-            raise SorterRegistryError(
-                f'{key}: container entries need the "spikeinterface" version baked into the image'
+                f'{key}: digest must be the image\'s "sha256:<64 hex>", got {raw.get("digest")!r}'
             )
 
     return SorterEntry(key=key, **raw)
@@ -190,22 +279,77 @@ def load_registry(path=None):
 
     registry = {key: parse_entry(key, raw) for key, raw in raw_registry.items()}
 
-    sifs = [e.sif for e in registry.values() if e.sif]
-    duplicated = sorted({s for s in sifs if sifs.count(s) > 1})
+    # Two keys with one image name and tag would share their image files.
+    prefixes = [e.sif_prefix for e in registry.values() if e.mode == "container"]
+    duplicated = sorted({p for p in prefixes if prefixes.count(p) > 1})
     if duplicated:
         raise SorterRegistryError(
-            f"{path}: sif filenames shared by several keys: {duplicated}"
+            f"{path}: image name and tag shared by several keys: {duplicated}"
         )
 
     return registry
 
 
-def resolve(key, registry=None, sif_dir=None, check_image=True):
+def find_image(entry, sif_dir, spikeinterface_version):
+    """(path, spikeinterface version) of the image a job with this SpikeInterface runs.
+
+    The image built for exactly that version if it is there; otherwise the newest one built
+    for another patch release of the same minor release, with a SorterImageVersionWarning.
+    Anything else raises MissingSorterImageError naming the commands that build the image.
+    """
+
+    host = release(spikeinterface_version)
+    if host is None:
+        raise SorterRegistryError(
+            f"{entry.key}: container sorters need spikeinterface installed in the job's "
+            f"environment, found {spikeinterface_version!r}"
+        )
+
+    sif_dir = pathlib.Path(sif_dir).resolve()
+    wanted = sif_dir / entry.sif_name(spikeinterface_version)
+    if wanted.is_file() and wanted.stat().st_size > 0:
+        return wanted.resolve(), spikeinterface_version
+
+    cached = {}
+    if sif_dir.is_dir():
+        for path in sif_dir.iterdir():
+            version = entry.sif_version(path.name)
+            if version and path.is_file() and path.stat().st_size > 0:
+                cached[version] = path
+
+    same_minor = [v for v in cached if release(v)[:2] == host[:2]]
+    if same_minor:
+        version = max(same_minor, key=lambda v: (release(v), v))
+        message = (
+            f"{entry.key}: no image for spikeinterface {spikeinterface_version} in {sif_dir}; "
+            f"running {cached[version].name}, built with spikeinterface {version} (patch "
+            f"difference). To build the matching image: {build_commands(entry.key)}."
+        )
+        print("WARNING", message)
+        warnings.warn(message, SorterImageVersionWarning, stacklevel=2)
+        return cached[version].resolve(), version
+
+    found = (
+        f" Images for other minor releases are not used: {sorted(cached)}."
+        if cached
+        else ""
+    )
+    raise MissingSorterImageError(
+        f"{entry.key}: no image for spikeinterface {spikeinterface_version} "
+        f"({wanted.name}) in {sif_dir}.{found} Build it with {build_commands(entry.key)}."
+    )
+
+
+def resolve(
+    key, registry=None, sif_dir=None, check_image=True, spikeinterface_version=None
+):
     """Resolve an allow-listed key to what the job will run.
 
-    For container entries the image is the absolute path of the cached .sif. When
-    check_image is set, a missing or empty image raises MissingSorterImageError instead
-    of letting SpikeInterface try to pull it.
+    For container entries the image is the absolute path of the cached .sif for
+    spikeinterface_version (default: the installed SpikeInterface); see find_image. When
+    check_image is set, a missing, empty or incompatible image raises
+    MissingSorterImageError instead of letting SpikeInterface try to pull it; without it
+    the path is the one the image for that version would have.
     """
 
     if registry is None:
@@ -221,12 +365,12 @@ def resolve(key, registry=None, sif_dir=None, check_image=True):
         return ResolvedSorter(entry)
 
     sif_dir = pathlib.Path(sif_dir) if sif_dir is not None else default_sif_dir()
-    sif_path = (sif_dir / entry.sif).resolve()
+    if spikeinterface_version is None:
+        spikeinterface_version = installed_spikeinterface()
 
-    if check_image and (not sif_path.is_file() or sif_path.stat().st_size == 0):
-        raise MissingSorterImageError(
-            f"{key}: container image {sif_path} is not cached. Build it on a login node with "
-            f"`python -m u19_sorting.apptainer_cache {key}`"
-        )
+    if not check_image:
+        sif_path = (sif_dir / entry.sif_name(spikeinterface_version)).resolve()
+        return ResolvedSorter(entry, sif_path, spikeinterface_version)
 
-    return ResolvedSorter(entry, sif_path)
+    sif_path, image_version = find_image(entry, sif_dir, spikeinterface_version)
+    return ResolvedSorter(entry, sif_path, image_version)

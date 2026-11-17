@@ -194,14 +194,18 @@ def installed_version(package):
 def resolve_sorter_version(clustering_method, key):
     """Resolve the job's "sorter_version" registry key, or None when it doesn't pin one.
 
-    Checks that the entry is for this clustering_method and that what is installed (the
-    sorter package, or the host SpikeInterface for a container) matches the entry.
+    Checks that the entry is for this clustering_method and, for a native entry, that the
+    installed sorter package matches it. A container entry takes the image built for the
+    host's SpikeInterface (sorter_registry.find_image): the host serializes the recording
+    and the image's SpikeInterface loads it.
     """
 
     if key is None:
         return None
 
-    resolved = sorter_registry.resolve(key)
+    resolved = sorter_registry.resolve(
+        key, spikeinterface_version=installed_version("spikeinterface")
+    )
     entry = resolved.entry
 
     if entry.sorter != clustering_method:
@@ -219,13 +223,6 @@ def resolve_sorter_version(clustering_method, key):
         if installed != entry.version:
             raise sorter_registry.SorterRegistryError(
                 f"sorter_version {key} pins {package} {entry.version}, but {installed} is installed"
-            )
-    else:
-        # The host serializes the recording; the SpikeInterface baked into the image loads it.
-        host_si = installed_version("spikeinterface")
-        if host_si != entry.spikeinterface:
-            raise sorter_registry.SorterRegistryError(
-                f"sorter_version {key}: image has spikeinterface {entry.spikeinterface}, host has {host_si}"
             )
 
     print("sorter_version", key, "->", resolved.provenance())

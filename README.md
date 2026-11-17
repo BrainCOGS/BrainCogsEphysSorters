@@ -137,6 +137,35 @@ A process parameter file can pin the sorter build with a `sorter_version` key fr
 - Unknown keys, a `clustering_method` that doesn't match the key, or an image that isn't cached fail the job
   before sorting starts. What ran is recorded in `sorter_provenance.json` next to the sorter output.
 
+##### Container images follow the job's SpikeInterface
+
+A container entry names only the base image, by tag, and its digest:
+
+```
+"kilosort2@2.0.2": {
+    "mode": "container",
+    "sorter": "kilosort2",
+    "image": "docker://spikeinterface/kilosort2-compiled-base:2.0.2_cuda-11.2.2",
+    "digest": "sha256:1690efce96494cf12a53f8f4521f9fafa2c2d171768c5d92d0000a25b0b07aec"
+}
+```
+
+The image is pulled by digest, and the SpikeInterface inside it is the one the job's environment has
+(`uv.lock`): the host serializes the recording and the image's SpikeInterface loads it. The image file is
+named after that version, `<image name>_<tag>_si-<spikeinterface>.sif` (here
+`kilosort2-compiled-base_2.0.2_cuda-11.2.2_si-0.105.0.sif`), so a SpikeInterface bump needs new images but
+no registry change. A job takes:
+
+- the image built for its own SpikeInterface version, if it is there;
+- otherwise, the newest image built for another patch release of the same minor release (0.105.x for
+  0.105.0), with a warning in the job log;
+- otherwise nothing: the job fails before sorting with an error that names the `scripts/sorter_image.sh`
+  `fetch` and `build` commands for that key. An image for another minor release (0.104.x or 0.106.x for
+  0.105.0) is not used.
+
+`sorter_provenance.json` records the image's SpikeInterface (`spikeinterface`) and the job's
+(`host_spikeinterface`).
+
 ##### Building container images on spock
 
 `python -m u19_sorting.apptainer_cache` (below) cannot build the Kilosort images: they ship Python 3.9
@@ -151,7 +180,8 @@ sbatch scripts/sorter_image.sh build kilosort2@2.0.2   # compute node, offline, 
 ```
 
 The image gets a uv Python 3.13 venv with the `spikeinterface`, `neo`, `probeinterface` and `numpy`
-versions of `.venv`, first on `PATH`; the sorter keeps the image's own runtime. Unpacking and packing
+versions of `.venv`, first on `PATH`, and is named after that `spikeinterface` version; the sorter keeps
+the image's own runtime. Unpacking and packing
 are done on the node's local disk: on the login VM or on NFS they take hours. Jobs run each command
 in the image with `apptainer exec` (`u19_sorting/apptainer_exec.py`) rather than in the Apptainer
 instance SpikeInterface would start: on spock such instances were killed seconds into the sort on some
@@ -167,9 +197,8 @@ python -m u19_sorting.apptainer_cache             # build all missing images (or
 python -m u19_sorting.apptainer_cache --check     # exit 1 if any image is missing
 ```
 
-Each image is the digest-pinned SpikeInterface docker image with the pinned `spikeinterface[full]` installed on top
-(jobs run with `installation_mode="no-install"`, so nothing is pip-installed at run time). The host's
-`spikeinterface` must match the entry's `spikeinterface` version. Images are built next to their final
+Each image is the digest-pinned SpikeInterface docker image with the installed `spikeinterface[full]` version on top
+(jobs run with `installation_mode="no-install"`, so nothing is pip-installed at run time). Images are built next to their final
 location and renamed into place read-only; existing images are never rebuilt. Add `--fakeroot` if the
 cluster requires it for `apptainer build`.
 
@@ -179,14 +208,14 @@ cluster requires it for `apptainer build`.
 | Images (`.sif`) | `apptainer/sif` next to the checkout: `/scratch/gpfs/BRAINCOGS/electrophysiology_processing/apptainer/sif` on della, `AutomaticPipelineProcessing/electrophysiology_processing/apptainer/sif` on spock | `U19_APPTAINER_SIF_DIR` |
 | Apptainer layer cache | `apptainer/cache` next to the checkout | `U19_APPTAINER_CACHEDIR` |
 
-Each container entry pins the `spikeinterface` version that `uv.lock` installs on the host (a test checks
-this): the host serializes the recording and the image's SpikeInterface loads it. After a lock update that
-changes `spikeinterface`, add new entries (new `.sif` names) for the new version and build them.
+After a lock update that changes `spikeinterface`, build each container key's image for the new version
+(`scripts/sorter_image.sh fetch <key>`, then `sbatch scripts/sorter_image.sh build <key>`) before the
+update reaches the cluster checkout. Until then, a patch-level bump runs on the previous patch's images with
+a warning, and a minor-level bump stops container jobs with the commands to run.
 
-To add a version: append a new key to `sorter_registry.json` (never edit or reuse an existing key, since past
-jobs' provenance points at it), then run `python -m u19_sorting.apptainer_cache <key>` on a login node.
-An image is only rebuilt when its `.sif` file is missing, so if the build recipe in `apptainer_cache.py` changes,
-new entries need new `.sif` names.
+To add a sorter version: append a new key to `sorter_registry.json` (never edit or reuse an existing key, since
+past jobs' provenance points at it), then build its image. An image is only rebuilt when its `.sif` file is
+missing, so a change to the build recipe needs a new key (a new tag) as well.
 
 
 ### SpikeInterface path (optional)
