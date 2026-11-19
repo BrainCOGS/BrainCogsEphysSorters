@@ -1,15 +1,20 @@
-"""One normalized description of a job, built from its two parameter files.
+"""One normalized description of a job, built from its parameter files.
 
 U19-pipeline-python writes `preprocess_paramset_<id>.json` (an ordered list of
-`{method: params}`) and `process_paramset_<id>.json` (the clustering paramset plus
-`clustering_method`). `load_job_spec` reads both and returns a `JobSpec` with
-`preprocessing` (ordered steps), `sorting` and `postprocessing`. Everything that depends
+`{method: params}`), `process_paramset_<id>.json` (the clustering paramset plus
+`clustering_method`) and, for a job that selected a post-processing step list,
+`postprocess_paramset_<id>.json` (an ordered list of `{method: params}` like the
+preprocess file). `load_job_spec` reads them and returns a `JobSpec` with `preprocessing`
+(ordered steps), `sorting` and `postprocessing` (ordered steps). Everything that depends
 on more than one stage is decided here, once:
 
   - a motion-correction step ran, so the sorter's own drift correction is turned off
     (`sorting.disable_drift`, applied with `drift_override`);
   - a trailing `spikeinterface` step in front of a SpikeInterface sort is not written to
-    disk: it is applied lazily in the sort stage (`sorting.lazy_steps`).
+    disk: it is applied lazily in the sort stage (`sorting.lazy_steps`);
+  - a namespaced paramset's own `postprocessing` object becomes the first postprocessing
+    step (a `spikeinterface` one), ahead of the steps of the postprocess file;
+  - which recording the sorting analyzer is built on (`analyzer_recording_steps`).
 
 Sorting paramsets come in two shapes:
 
@@ -36,6 +41,12 @@ from u19_sorting import config
 CATGT = "catgt"
 DREDGE = "dredge"
 SPIKEINTERFACE = "spikeinterface"
+
+# `postcluster_method` names (the key of each element of the postprocess file).
+# `spikeinterface` builds a sorting analyzer and computes its extensions; `bombcell` labels
+# the units good / mua / noise / non_soma with SpikeInterface's port of bombcell.
+BOMBCELL = "bombcell"
+POSTPROCESS_METHODS = {SPIKEINTERFACE, BOMBCELL}
 
 # Methods that are accepted and do nothing. "Nothing" is a row of PreClusterMethod in the
 # production database ("Do Nothing method") and most 2026 jobs use it.
@@ -80,8 +91,31 @@ _NAMESPACED_KEYS = {
     "postprocessing",
     "resources",
 }
-_POSTPROCESSING_KEYS = {"extensions", "export", "job_kwargs"}
+_POSTPROCESSING_KEYS = {"extensions", "export", "job_kwargs", "recording_steps"}
 EXPORT_FORMATS = {"phy"}
+_BOMBCELL_KEYS = {
+    "thresholds",
+    "split_non_somatic",
+    "extensions",
+    "job_kwargs",
+    "recording_steps",
+}
+BOMBCELL_SECTIONS = {"noise", "mua", "non-somatic"}
+_BOMBCELL_THRESHOLD_KEYS = {"greater", "less", "abs"}
+
+# `recording_steps` of a postprocessing step: the analyzer is built on the recording the
+# sorter read, with these SpikeInterface steps applied lazily on top. AUTO adds a 300 Hz
+# high-pass and a global median reference when the sorter read the raw, unfiltered run
+# (no preprocessing written and no lazy steps), since waveforms, templates and every
+# amplitude metric need filtered traces; otherwise nothing.
+AUTO = "auto"
+AUTO_RECORDING_STEPS = [
+    {"name": "highpass_filter", "kwargs": {"freq_min": 300.0}},
+    {
+        "name": "common_reference",
+        "kwargs": {"operator": "median", "reference": "global"},
+    },
+]
 
 # run_sorter / run_sorter_container arguments the job sets itself; a paramset may not.
 RESERVED_RUN_SORTER_PARAMS = {
@@ -135,15 +169,36 @@ class SortingSpec:
 
 
 @dataclasses.dataclass
+class PostprocStep:
+    method: str
+    params: dict
+    # Where the step came from: "paramset" (the `postprocessing` object of a namespaced
+    # clustering paramset) or "file" (the postprocess parameter file).
+    source: str = "file"
+
+
+@dataclasses.dataclass
 class JobSpec:
     preprocessing: list
     sorting: SortingSpec
-    postprocessing: dict
+    # Ordered PostprocStep list; empty when the job has no postprocessing.
+    postprocessing: list = dataclasses.field(default_factory=list)
+    # Steps applied on top of the sorter's input recording before the analyzer is built,
+    # or AUTO (see AUTO_RECORDING_STEPS). Only used when there is an analyzer.
+    analyzer_recording_steps: list | str = dataclasses.field(default_factory=list)
 
     def step_params(self, method):
         """Params of the first `method` step, or None if the job has no such step."""
 
         for step in self.preprocessing:
+            if step.method == method:
+                return step.params
+        return None
+
+    def postprocess_params(self, method):
+        """Params of the first `method` postprocessing step, or None."""
+
+        for step in self.postprocessing:
             if step.method == method:
                 return step.params
         return None
@@ -176,25 +231,7 @@ def normalize_spikeinterface_params(params):
     if not isinstance(params.get("steps"), list):
         raise JobSpecError('spikeinterface params need a "steps" list')
 
-    steps = []
-    for index, step in enumerate(params["steps"]):
-        where = f"spikeinterface step {index}"
-        if not _is_dict(step):
-            raise JobSpecError(
-                f'{where} must be {{"name": ..., "kwargs": {{...}}}}, got {step!r}'
-            )
-        unknown = sorted(set(step) - _SI_STEP_KEYS)
-        if unknown:
-            raise JobSpecError(f"{where}: unknown keys {unknown}")
-        name = step.get("name")
-        if name not in SI_STEP_NAMES:
-            raise JobSpecError(
-                f"{where}: unknown step name {name!r} (allowed: {sorted(SI_STEP_NAMES)})"
-            )
-        kwargs = _dict_or_empty(step.get("kwargs"), f"{where} ({name}) kwargs")
-        if "recording" in kwargs:
-            raise JobSpecError(f"{where} ({name}): kwargs may not set 'recording'")
-        steps.append({"name": name, "kwargs": kwargs})
+    steps = normalize_si_steps(params["steps"], "spikeinterface")
 
     for flag in ("materialize", "disable_sorter_drift"):
         if flag in params and not isinstance(params[flag], bool):
@@ -208,6 +245,36 @@ def normalize_spikeinterface_params(params):
         "materialize": params.get("materialize", False),
         "disable_sorter_drift": params.get("disable_sorter_drift", True),
     }
+
+
+def normalize_si_steps(raw_steps, what, allowed=None):
+    """Validate a list of `{"name": ..., "kwargs": {...}}` SpikeInterface steps."""
+
+    allowed = SI_STEP_NAMES if allowed is None else allowed
+    if not isinstance(raw_steps, list):
+        raise JobSpecError(
+            f"{what} steps must be a list, got {type(raw_steps).__name__}"
+        )
+    steps = []
+    for index, step in enumerate(raw_steps):
+        where = f"{what} step {index}"
+        if not _is_dict(step):
+            raise JobSpecError(
+                f'{where} must be {{"name": ..., "kwargs": {{...}}}}, got {step!r}'
+            )
+        unknown = sorted(set(step) - _SI_STEP_KEYS)
+        if unknown:
+            raise JobSpecError(f"{where}: unknown keys {unknown}")
+        name = step.get("name")
+        if name not in allowed:
+            raise JobSpecError(
+                f"{where}: unknown step name {name!r} (allowed: {sorted(allowed)})"
+            )
+        kwargs = _dict_or_empty(step.get("kwargs"), f"{where} ({name}) kwargs")
+        if "recording" in kwargs:
+            raise JobSpecError(f"{where} ({name}): kwargs may not set 'recording'")
+        steps.append({"name": name, "kwargs": kwargs})
+    return steps
 
 
 def normalize_preprocessing(raw):
@@ -259,8 +326,36 @@ def normalize_preprocessing(raw):
     return steps
 
 
+def _extensions(raw, what):
+    extensions = _dict_or_empty(raw, f"{what} extensions")
+    for name in extensions:
+        extensions[name] = _dict_or_empty(
+            extensions[name], f"{what} extension {name!r} kwargs"
+        )
+    return extensions
+
+
+def _recording_steps(params, what):
+    """A step's `recording_steps`: None (not set), AUTO, or a normalized step list."""
+
+    raw = params.get("recording_steps")
+    if raw is None:
+        return None
+    if raw == AUTO:
+        return AUTO
+    # Motion correction re-estimates the motion: it belongs in preprocessing, where the
+    # sorter sees it too.
+    return normalize_si_steps(
+        raw, f"{what} recording_steps", allowed=SI_STEP_NAMES - MOTION_STEPS
+    )
+
+
 def normalize_postprocessing(raw):
-    """`{}` when there is nothing to do, else extensions / export / job_kwargs."""
+    """`{}` when there is nothing to do, else extensions / export / job_kwargs.
+
+    The params of a `spikeinterface` postprocessing step, and the `postprocessing` object
+    of a namespaced clustering paramset (which takes the same keys).
+    """
 
     params = _dict_or_empty(raw, "postprocessing")
     if not params:
@@ -271,25 +366,154 @@ def normalize_postprocessing(raw):
             f"postprocessing: unknown keys {unknown} (allowed: {sorted(_POSTPROCESSING_KEYS)})"
         )
 
-    extensions = _dict_or_empty(params.get("extensions"), "postprocessing extensions")
-    for name in extensions:
-        extensions[name] = _dict_or_empty(
-            extensions[name], f"postprocessing extension {name!r} kwargs"
-        )
-
     export = params.get("export") or None
     if export is not None and export not in EXPORT_FORMATS:
         raise JobSpecError(
             f"postprocessing export must be one of {sorted(EXPORT_FORMATS)} or null, got {export!r}"
         )
 
-    return {
-        "extensions": extensions,
+    normalized = {
+        "extensions": _extensions(params.get("extensions"), "postprocessing"),
         "export": export,
         "job_kwargs": _dict_or_empty(
             params.get("job_kwargs"), "postprocessing job_kwargs"
         ),
     }
+    recording_steps = _recording_steps(params, "postprocessing")
+    if recording_steps is not None:
+        normalized["recording_steps"] = recording_steps
+    return normalized
+
+
+def normalize_bombcell_thresholds(raw):
+    """Threshold overrides, `{section: {metric: {"greater", "less", "abs"} | null}}`.
+
+    They are applied on top of SpikeInterface's bombcell defaults when the job runs: a
+    metric given here replaces the default one, and `null` drops it.
+    """
+
+    thresholds = _dict_or_empty(raw, "bombcell thresholds")
+    unknown = sorted(set(thresholds) - BOMBCELL_SECTIONS)
+    if unknown:
+        raise JobSpecError(
+            f"bombcell thresholds: unknown sections {unknown} (allowed: {sorted(BOMBCELL_SECTIONS)})"
+        )
+    for section, metrics in thresholds.items():
+        metrics = _dict_or_empty(metrics, f"bombcell thresholds {section!r}")
+        for metric, threshold in metrics.items():
+            where = f"bombcell threshold {section}.{metric}"
+            if threshold is None:
+                continue
+            if not _is_dict(threshold):
+                raise JobSpecError(
+                    f'{where} must be {{"greater": ..., "less": ...}} or null, got {threshold!r}'
+                )
+            bad = sorted(set(threshold) - _BOMBCELL_THRESHOLD_KEYS)
+            if bad:
+                raise JobSpecError(
+                    f"{where}: unknown keys {bad} (allowed: {sorted(_BOMBCELL_THRESHOLD_KEYS)})"
+                )
+            for bound in ("greater", "less"):
+                value = threshold.get(bound)
+                if value is not None and (
+                    isinstance(value, bool) or not isinstance(value, int | float)
+                ):
+                    raise JobSpecError(
+                        f"{where}.{bound} must be a number or null, got {value!r}"
+                    )
+            if "abs" in threshold and not isinstance(threshold["abs"], bool):
+                raise JobSpecError(f"{where}.abs must be true or false")
+        thresholds[section] = metrics
+    return thresholds
+
+
+def normalize_bombcell(raw):
+    """The params of a `bombcell` postprocessing step."""
+
+    params = _dict_or_empty(raw, "bombcell params")
+    unknown = sorted(set(params) - _BOMBCELL_KEYS)
+    if unknown:
+        raise JobSpecError(
+            f"bombcell params: unknown keys {unknown} (allowed: {sorted(_BOMBCELL_KEYS)})"
+        )
+    split = params.get("split_non_somatic", False)
+    if not isinstance(split, bool):
+        raise JobSpecError("bombcell params: split_non_somatic must be true or false")
+
+    normalized = {
+        "thresholds": normalize_bombcell_thresholds(params.get("thresholds")),
+        "split_non_somatic": split,
+        "extensions": _extensions(params.get("extensions"), "bombcell"),
+        "job_kwargs": _dict_or_empty(params.get("job_kwargs"), "bombcell job_kwargs"),
+    }
+    recording_steps = _recording_steps(params, "bombcell")
+    if recording_steps is not None:
+        normalized["recording_steps"] = recording_steps
+    return normalized
+
+
+def normalize_postprocess_steps(raw):
+    """The postprocess file as an ordered list of PostprocStep (`[]` without one)."""
+
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise JobSpecError(
+            f"postprocess params must be a list of {{method: params}}, got {type(raw).__name__}"
+        )
+
+    steps = []
+    for index, element in enumerate(raw):
+        if not _is_dict(element) or not element:
+            raise JobSpecError(
+                f"postprocess step {index} must be {{method: params}}, got {element!r}"
+            )
+        methods = [m for m in element if str(m).lower() not in NOOP_METHODS]
+        unknown = sorted(m for m in methods if m not in POSTPROCESS_METHODS)
+        if unknown:
+            raise JobSpecError(
+                f"postprocess step {index}: unknown method {unknown} "
+                f"(known: {sorted(POSTPROCESS_METHODS)}, no-op: Nothing)"
+            )
+        if len(methods) > 1:
+            raise JobSpecError(
+                f"postprocess step {index}: one method per list element, got {sorted(methods)}"
+            )
+        for method in methods:
+            if method == SPIKEINTERFACE:
+                params = normalize_postprocessing(element[method])
+                if not params:
+                    continue  # an empty spikeinterface step has nothing to do
+            else:
+                params = normalize_bombcell(element[method])
+            steps.append(PostprocStep(method, params, source="file"))
+    return steps
+
+
+def resolve_analyzer_recording_steps(steps):
+    """The `recording_steps` the job's analyzer is built with.
+
+    Steps that set it must agree, since all of them share one analyzer. Unset, it is AUTO
+    when the job has a postprocess file step, and nothing (the recording exactly as the
+    sorter read it, as before this option existed) for a paramset-only job.
+    """
+
+    explicit = [
+        step.params["recording_steps"]
+        for step in steps
+        if "recording_steps" in step.params
+    ]
+    for other in explicit[1:]:
+        if other != explicit[0]:
+            raise JobSpecError(
+                "postprocessing steps set different recording_steps; they share one "
+                f"sorting analyzer, so they must agree: {explicit[0]!r} vs {other!r}"
+            )
+    if explicit:
+        return copy.deepcopy(explicit[0])
+    if any(step.source == "file" for step in steps):
+        return AUTO
+    return []
 
 
 def normalize_sorting(raw):
@@ -417,11 +641,18 @@ def drift_override(clustering_method, via_spikeinterface):
     return None, {}
 
 
-def build_job_spec(preprocess_parameters, process_parameters):
-    """Normalize the contents of the two parameter files into a JobSpec."""
+def build_job_spec(
+    preprocess_parameters, process_parameters, postprocess_parameters=None
+):
+    """Normalize the contents of the parameter files into a JobSpec."""
 
     preprocessing = normalize_preprocessing(preprocess_parameters)
-    sorting, postprocessing = normalize_sorting(process_parameters)
+    sorting, paramset_postprocessing = normalize_sorting(process_parameters)
+    postprocessing = normalize_postprocess_steps(postprocess_parameters)
+    if paramset_postprocessing:
+        postprocessing.insert(
+            0, PostprocStep(SPIKEINTERFACE, paramset_postprocessing, source="paramset")
+        )
     sorting.disable_drift = motion_disables_sorter_drift(
         preprocessing, sorting.inline_preprocessing
     )
@@ -452,7 +683,10 @@ def build_job_spec(preprocess_parameters, process_parameters):
         step.output_name = f"{config.preproc_tools[step.method]}_output{suffix}"
 
     return JobSpec(
-        preprocessing=preprocessing, sorting=sorting, postprocessing=postprocessing
+        preprocessing=preprocessing,
+        sorting=sorting,
+        postprocessing=postprocessing,
+        analyzer_recording_steps=resolve_analyzer_recording_steps(postprocessing),
     )
 
 
@@ -462,10 +696,13 @@ def _read_json(filename):
 
 
 def load_job_spec(recording_process_id, missing_preprocess_ok=False):
-    """Read this job's two parameter files and return its JobSpec.
+    """Read this job's parameter files and return its JobSpec.
 
     missing_preprocess_ok: treat a job without a preprocess file as one without
     preprocessing (the sort stage always did; the preprocess stage needs the file).
+    The postprocess file is optional: U19-pipeline-python only writes it for a job that
+    selected a post-processing step list, and without it the job has no postprocessing
+    beyond what its clustering paramset asks for.
     """
 
     preprocess_filename = pathlib.Path(
@@ -478,4 +715,12 @@ def load_job_spec(recording_process_id, missing_preprocess_ok=False):
     process_parameters = _read_json(
         config.process_parameter_file.format(recording_process_id)
     )
-    return build_job_spec(preprocess_parameters, process_parameters)
+    postprocess_filename = pathlib.Path(
+        config.postprocess_parameter_file.format(recording_process_id)
+    )
+    postprocess_parameters = (
+        _read_json(postprocess_filename) if postprocess_filename.is_file() else None
+    )
+    return build_job_spec(
+        preprocess_parameters, process_parameters, postprocess_parameters
+    )

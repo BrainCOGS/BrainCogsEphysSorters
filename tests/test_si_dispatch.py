@@ -1,13 +1,19 @@
-"""How a job's spec is turned into calls: step chaining, legacy vs namespaced sorting, and
-the output layout. Runners are faked, so none of this needs the sorting stack."""
+"""How a job's spec is turned into calls: step chaining, legacy vs namespaced sorting, the
+postprocessing stage, and the output layout. Runners are faked, so none of this needs the
+sorting stack."""
 
 import json
+import pathlib
+import runpy
 
 import pytest
 
+import u19_sorting.postprocess_wrappers as ppw
 import u19_sorting.preprocess_wrappers as pw
 import u19_sorting.sorter_wrappers as sw
 from u19_sorting import config, job_spec, si_wrappers
+
+REPO = pathlib.Path(__file__).resolve().parents[1]
 
 CATGT = {"apfilter": ["biquad", 2, 300, 0], "extras": ["ap", "gblcar"]}
 STEPS = {"steps": [{"name": "highpass_filter", "kwargs": {"freq_min": 300}}]}
@@ -32,6 +38,11 @@ def job(tmp_path, monkeypatch):
         config,
         "preprocess_parameter_file",
         str(params_dir / "preprocess_paramset_{}.json"),
+    )
+    monkeypatch.setattr(
+        config,
+        "postprocess_parameter_file",
+        str(params_dir / "postprocess_paramset_{}.json"),
     )
     monkeypatch.setattr(config, "chanmap_file", str(tmp_path / "chanmap_{}.mat"))
 
@@ -63,21 +74,33 @@ def job(tmp_path, monkeypatch):
         calls.append(("si_sort", sorting, resolved, raw_directory, output_directory))
         return "recording", "sorting"
 
-    def fake_postprocessing(
-        recording, sorting, output_directory, postprocessing, export_phy
-    ):
-        calls.append(("si_post", output_directory, postprocessing, export_phy))
+    def post_recorder(name):
+        def run(context, params):
+            calls.append((name, context, params))
+
+        return staticmethod(run)
+
+    def fake_finish(context, export_phy):
+        calls.append(("finish", context, export_phy))
 
     monkeypatch.setattr(si_wrappers, "run_sorter", fake_si_run_sorter)
-    monkeypatch.setattr(si_wrappers, "run_postprocessing", fake_postprocessing)
+    monkeypatch.setattr(
+        si_wrappers.spikeinterface_postproc, "run", post_recorder("si_post")
+    )
+    monkeypatch.setattr(si_wrappers.bombcell_postproc, "run", post_recorder("bombcell"))
+    monkeypatch.setattr(si_wrappers, "finish_postprocessing", fake_finish)
 
     class Job:
         raw = tmp_path / "raw"
         processed = tmp_path / "processed"
 
-        def write(self, pre, proc):
+        def write(self, pre, proc, post=None):
             (params_dir / "preprocess_paramset_1.json").write_text(json.dumps(pre))
             (params_dir / "process_paramset_1.json").write_text(json.dumps(proc))
+            if post is not None:
+                (params_dir / "postprocess_paramset_1.json").write_text(
+                    json.dumps(post)
+                )
 
         def process_file(self):
             return json.loads((params_dir / "process_paramset_1.json").read_text())
@@ -92,6 +115,14 @@ def job(tmp_path, monkeypatch):
 
         def sort(self):
             return sw.sorter_main(1, self.raw, self.processed)
+
+        def sort_and_postprocess(self, sorter_input=None):
+            """The sort and postprocessing stages, as main_script.py runs them."""
+            sorter_input = self.raw if sorter_input is None else sorter_input
+            spec = job_spec.load_job_spec(1, missing_preprocess_ok=True)
+            result = sw.run_sort(1, sorter_input, self.processed, spec)
+            context = ppw.postprocess_main(spec, self.raw, sorter_input, result)
+            return result, context
 
     j = Job()
     j.calls = calls
@@ -214,23 +245,143 @@ def test_namespaced_paramset_runs_through_spikeinterface(job):
     assert job.process_file() == NAMESPACED
 
 
+def test_the_sort_stage_does_no_postprocessing(job):
+    post = {"extensions": {"quality_metrics": {}}, "export": "phy"}
+    job.write([], {**NAMESPACED, "postprocessing": post}, [{"bombcell": {}}])
+    job.sort()
+    assert [c[0] for c in job.calls] == ["si_sort"]
+
+
 def test_namespaced_kilosort_postprocessing_does_not_export_phy(job):
     post = {"extensions": {"quality_metrics": {}}, "export": "phy"}
     job.write([], {**NAMESPACED, "postprocessing": post})
-    job.sort()
-    assert [c[0] for c in job.calls] == ["si_sort", "si_post"]
-    _, output_dir, postprocessing, export_phy = job.calls[1]
-    assert output_dir == job.processed / "kilosort4_output"
+    result, _ = job.sort_and_postprocess()
+    assert [c[0] for c in job.calls] == ["si_sort", "si_post", "finish"]
+    _, context, postprocessing = job.calls[1]
+    assert context.output_directory == job.processed / "kilosort4_output"
     assert postprocessing["extensions"] == {"quality_metrics": {}}
-    assert export_phy is False
+    assert job.calls[2][2] is False  # export_phy
+    # the analyzer is built on what the sort stage had in memory, exactly as before
+    assert (context._recording, context._sorting) == ("recording", "sorting")
+    assert (result.recording, result.sorting) == ("recording", "sorting")
+    assert context.resolved_recording_steps() == []
 
 
-def test_other_sorters_always_export_phy(job):
+def test_other_sorters_always_export_phy(job, monkeypatch):
+    os_copies = []
+    monkeypatch.setattr(sw, "params_file_for_different_os", os_copies.append)
     job.write([], {"clustering_method": "spykingcircus2", "sorter_params": {}})
-    out = job.sort()
-    assert [c[0] for c in job.calls] == ["si_sort", "si_post"]
-    assert job.calls[1][3] is True
-    assert out == job.processed / "spykingcircus2_output"
+    result, _ = job.sort_and_postprocess()
+    assert [c[0] for c in job.calls] == ["si_sort", "finish"]
+    assert job.calls[1][2] is True
+    assert result.output_directory == job.processed / "spykingcircus2_output"
+    # the sort stage ran it before the export, and the export wrote a new params.py
+    assert os_copies == [result.output_directory] * 2
+
+
+def test_no_postprocessing_for_a_kilosort_job_without_steps(job):
+    job.write([{"catgt": CATGT}], LEGACY)
+    _, context = job.sort_and_postprocess()
+    assert context is None
+    assert [c[0] for c in job.calls] == ["ks4"]
+
+
+def test_postprocess_file_steps_run_in_order_after_the_paramset_ones(job):
+    post = {"extensions": {"quality_metrics": {}}}
+    file_steps = [
+        {"bombcell": {"split_non_somatic": True}},
+        {"spikeinterface": {"extensions": {"template_metrics": {}}}},
+    ]
+    job.write([], {**NAMESPACED, "postprocessing": post}, file_steps)
+    job.sort_and_postprocess()
+    assert [c[0] for c in job.calls] == [
+        "si_sort",
+        "si_post",
+        "bombcell",
+        "si_post",
+        "finish",
+    ]
+    assert job.calls[2][2]["split_non_somatic"] is True
+    assert job.calls[3][2]["extensions"] == {"template_metrics": {}}
+    # one analyzer for every step
+    assert len({id(c[1]) for c in job.calls[1:]}) == 1
+
+
+def test_legacy_sort_is_read_back_from_disk_for_postprocessing(job, monkeypatch):
+    opened = []
+    monkeypatch.setattr(
+        si_wrappers, "read_recording", lambda d: opened.append(("rec", d)) or "rec"
+    )
+    monkeypatch.setattr(
+        si_wrappers, "read_sorter_output", lambda d: opened.append(("ks", d)) or "ks"
+    )
+    job.write([{"catgt": CATGT}], LEGACY, [{"bombcell": {}}])
+    catgt_out = job.processed / "catgt_output"
+    result, context = job.sort_and_postprocess(sorter_input=catgt_out)
+
+    assert [c[0] for c in job.calls] == ["ks4", "bombcell", "finish"]
+    assert (result.recording, result.sorting) == (None, None)
+    assert job.calls[2][2] is False  # Kilosort wrote the phy folder itself
+    # nothing is opened until a step builds the analyzer
+    assert opened == []
+    assert context._open(context._recording) == "rec"
+    assert context._open(context._sorting) == "ks"
+    assert opened == [("rec", catgt_out), ("ks", job.processed / "kilosort4_output")]
+    # CatGT filtered the recording, so the default ("auto") adds nothing
+    assert context.recording_steps == job_spec.AUTO
+    assert context.resolved_recording_steps() == []
+
+
+def test_auto_filters_a_raw_recording_for_the_analyzer(job):
+    job.write([{"Nothing": {}}], LEGACY, [{"bombcell": {}}])
+    _, context = job.sort_and_postprocess()
+    assert [s["name"] for s in context.resolved_recording_steps()] == [
+        "highpass_filter",
+        "common_reference",
+    ]
+
+
+def test_main_script_postprocesses_before_the_cleanup(monkeypatch, tmp_path):
+    """The postprocessing stage reads the recording the sorter read, which the cleanup
+    deletes when it is a CatGT/DREDge/spikeinterface output; IBL runs last."""
+
+    calls = []
+    spec = job_spec.build_job_spec([{"catgt": CATGT}], LEGACY, [{"bombcell": {}}])
+    sorted_dir = tmp_path / "processed" / "kilosort4_output"
+    result = sw.SortResult(sorted_dir)
+
+    def record(name, value=None):
+        def call(*args):
+            calls.append((name, args))
+            return value
+
+        return call
+
+    monkeypatch.setenv("recording_process_id", "5")
+    monkeypatch.setenv("raw_data_directory", "raw/run_g0_imec0")
+    monkeypatch.setenv("processed_data_directory", "proc/run_g0_imec0/job_id_5")
+    monkeypatch.setattr(job_spec, "load_job_spec", record("spec", spec))
+    monkeypatch.setattr(pw, "preprocess_main", record("preprocess", "catgt_dir"))
+    monkeypatch.setattr(sw, "run_sort", record("sort", result))
+    monkeypatch.setattr(ppw, "postprocess_main", record("postprocess"))
+    monkeypatch.setattr(pw, "post_process_partial_results", record("cleanup"))
+    monkeypatch.setattr(ppw, "post_process_main", record("ibl"))
+
+    runpy.run_path(str(REPO / "main_script.py"), run_name="__main__")
+
+    assert [c[0] for c in calls] == [
+        "spec",
+        "preprocess",
+        "sort",
+        "postprocess",
+        "cleanup",
+        "ibl",
+    ]
+    _, (got_spec, raw, sorter_input, got_result) = calls[3]
+    assert got_spec is spec and got_result is result
+    assert sorter_input == "catgt_dir"  # what the sorter read, not the raw run
+    assert raw == pathlib.Path(config.root_raw_data_dir, "raw/run_g0_imec0")
+    assert calls[5][1][2] == sorted_dir
 
 
 @pytest.mark.parametrize(
