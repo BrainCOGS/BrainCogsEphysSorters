@@ -33,6 +33,8 @@ else:
 parameter_dir = pathlib.Path(home_dir, "ParameterFiles").as_posix()
 process_parameter_file = parameter_dir + "/process_paramset_{}.json"
 preprocess_parameter_file = parameter_dir + "/preprocess_paramset_{}.json"
+# Optional: written only for a job that selected a post-processing step list.
+postprocess_parameter_file = parameter_dir + "/postprocess_paramset_{}.json"
 
 chanmap_dir = pathlib.Path(home_dir, "ChanMapFiles").as_posix()
 chanmap_file = chanmap_dir + "/chanmap_{}.mat"

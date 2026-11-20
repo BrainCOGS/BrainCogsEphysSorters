@@ -170,7 +170,7 @@ def test_legacy_flat_paramset_passes_everything_but_the_method():
     assert s.sorter_params == {"n_chan_bin": 385, "Th": 9}
     assert s.sorter_version is None
     assert s.si_params == {}
-    assert spec.postprocessing == {}
+    assert spec.postprocessing == []
 
 
 def test_legacy_flat_paramset_may_pin_a_version():
@@ -192,7 +192,7 @@ def test_legacy_keys_that_look_new_are_still_sorter_params():
     """Without `sorter_params` nothing is interpreted: it all goes to the sorter as today."""
     spec = build([], {"clustering_method": "kilosort4", "postprocessing": {"a": 1}})
     assert spec.sorting.sorter_params == {"postprocessing": {"a": 1}}
-    assert spec.postprocessing == {}
+    assert spec.postprocessing == []
 
 
 def test_namespaced_paramset_is_split():
@@ -202,11 +202,20 @@ def test_namespaced_paramset_is_split():
     assert s.sorter_version == "kilosort4@4.1.7"
     assert s.sorter_params == {"Th_universal": 9, "nblocks": 1}
     assert s.si_params == {"save_preprocessed_copy": True}
-    assert spec.postprocessing == {
-        "extensions": {"quality_metrics": {}},
-        "export": "phy",
-        "job_kwargs": {},
-    }
+    # the paramset's `postprocessing` is the job's first (spikeinterface) postprocessing step
+    assert spec.postprocessing == [
+        job_spec.PostprocStep(
+            "spikeinterface",
+            {
+                "extensions": {"quality_metrics": {}},
+                "export": "phy",
+                "job_kwargs": {},
+            },
+            source="paramset",
+        )
+    ]
+    # ...and its analyzer is built on the recording exactly as the sorter read it
+    assert spec.analyzer_recording_steps == []
 
 
 def test_minimal_namespaced_paramset():
@@ -218,7 +227,7 @@ def test_minimal_namespaced_paramset():
         {},
         {},
     )
-    assert spec.postprocessing == {}
+    assert spec.postprocessing == []
 
 
 @pytest.mark.parametrize(
@@ -231,7 +240,7 @@ def test_null_namespaced_values_are_defaults(key):
     if key == "sorter_version":
         assert spec.sorting.sorter_version is None
     elif key == "postprocessing":
-        assert spec.postprocessing == {}
+        assert spec.postprocessing == []
     else:
         assert getattr(spec.sorting, key) == {}
 
@@ -261,8 +270,8 @@ def test_malformed_namespaced_values_fail(bad):
 
 def test_null_extension_kwargs_become_empty():
     spec = build([], {**NEW_KS4, "postprocessing": {"extensions": {"templates": None}}})
-    assert spec.postprocessing["extensions"] == {"templates": {}}
-    assert spec.postprocessing["export"] is None
+    assert spec.postprocess_params("spikeinterface")["extensions"] == {"templates": {}}
+    assert spec.postprocess_params("spikeinterface")["export"] is None
 
 
 def test_si_params_may_not_set_run_sorter_arguments():
@@ -399,6 +408,23 @@ def test_load_job_spec_reads_both_files(param_files):
     assert spec.sorting.sorter_params == {"n_chan_bin": 385}
 
 
+def test_load_job_spec_reads_the_postprocess_file(param_files, tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        config,
+        "postprocess_parameter_file",
+        str(tmp_path / "postprocess_paramset_{}.json"),
+    )
+    param_files([{"catgt": CATGT}], LEGACY_KS4)
+    assert job_spec.load_job_spec(7).postprocessing == []  # no file: no postprocessing
+
+    (tmp_path / "postprocess_paramset_7.json").write_text(
+        json.dumps([{"bombcell": {}}])
+    )
+    spec = job_spec.load_job_spec(7)
+    assert [s.method for s in spec.postprocessing] == ["bombcell"]
+    assert spec.analyzer_recording_steps == job_spec.AUTO
+
+
 def test_load_job_spec_missing_file(param_files):
     with pytest.raises(FileNotFoundError):
         job_spec.load_job_spec(8)
@@ -492,10 +518,142 @@ def test_resources_are_accepted_and_reach_nothing():
     spec = build([], {**NEW_KS4, "resources": resources})
     assert spec.sorting.sorter_params == NEW_KS4["sorter_params"]
     assert spec.sorting.si_params == NEW_KS4["si_params"]
-    assert "resources" not in spec.postprocessing
+    assert "resources" not in spec.postprocess_params("spikeinterface")
     assert build([], {**NEW_KS4, "resources": None}).sorting.legacy is False
 
 
 def test_resources_must_be_an_object():
     with pytest.raises(JobSpecError, match="resources"):
         build([], {**NEW_KS4, "resources": 16})
+
+
+# ------------------------------------------------------------------ postprocess file
+
+
+def test_no_postprocess_file_is_no_postprocessing():
+    for raw in (None, [], [{"Nothing": {}}]):
+        spec = job_spec.build_job_spec([], LEGACY_KS4, raw)
+        assert spec.postprocessing == []
+        assert spec.analyzer_recording_steps == []
+
+
+def test_postprocess_steps_keep_file_order():
+    spec = job_spec.build_job_spec(
+        [],
+        LEGACY_KS4,
+        [
+            {"spikeinterface": {"extensions": {"quality_metrics": {}}}},
+            {"bombcell": {"split_non_somatic": True}},
+        ],
+    )
+    assert [(s.method, s.source) for s in spec.postprocessing] == [
+        ("spikeinterface", "file"),
+        ("bombcell", "file"),
+    ]
+    assert spec.postprocessing[0].params == {
+        "extensions": {"quality_metrics": {}},
+        "export": None,
+        "job_kwargs": {},
+    }
+    assert spec.postprocessing[1].params == {
+        "thresholds": {},
+        "split_non_somatic": True,
+        "extensions": {},
+        "job_kwargs": {},
+    }
+
+
+def test_paramset_postprocessing_runs_before_the_file_steps():
+    spec = job_spec.build_job_spec([], NEW_KS4, [{"bombcell": {}}])
+    assert [(s.method, s.source) for s in spec.postprocessing] == [
+        ("spikeinterface", "paramset"),
+        ("bombcell", "file"),
+    ]
+
+
+def test_legacy_paramset_gets_postprocessing_from_the_file():
+    """The flat Kilosort paramsets most jobs use get an analyzer only from the file."""
+    spec = job_spec.build_job_spec([], LEGACY_KS4, [{"bombcell": None}])
+    assert spec.sorting.legacy is True
+    assert spec.sorting.sorter_params == {"n_chan_bin": 385}
+    assert spec.postprocess_params("bombcell")["thresholds"] == {}
+
+
+def test_empty_spikeinterface_step_is_dropped():
+    spec = job_spec.build_job_spec([], LEGACY_KS4, [{"spikeinterface": {}}])
+    assert spec.postprocessing == []
+
+
+def test_bombcell_threshold_overrides_are_kept_as_given():
+    thresholds = {
+        "mua": {"snr": {"greater": 3}, "isolation_distance": None},
+        "noise": {"exp_decay": {"greater": 0.02, "less": 0.2}},
+        "non-somatic": {},
+    }
+    spec = job_spec.build_job_spec(
+        [], LEGACY_KS4, [{"bombcell": {"thresholds": thresholds}}]
+    )
+    assert spec.postprocess_params("bombcell")["thresholds"] == thresholds
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        {"bombcell": {}},  # not a list
+        [{"phy": {}}],  # unknown method
+        [{"catgt": {}}],  # a preprocessing method
+        [{"bombcell": {}, "spikeinterface": {}}],  # two methods in one element
+        [[]],
+        [{}],
+        [{"bombcell": []}],
+        [{"bombcell": {"label_non_somatic": True}}],
+        [{"bombcell": {"split_non_somatic": "yes"}}],
+        [{"bombcell": {"thresholds": {"good": {}}}}],
+        [{"bombcell": {"thresholds": {"mua": {"snr": 5}}}}],
+        [{"bombcell": {"thresholds": {"mua": {"snr": {"min": 5}}}}}],
+        [{"bombcell": {"thresholds": {"mua": {"snr": {"greater": "5"}}}}}],
+        [{"bombcell": {"thresholds": {"mua": {"snr": {"greater": True}}}}}],
+        [{"bombcell": {"thresholds": {"mua": {"snr": {"abs": 1}}}}}],
+        [{"bombcell": {"extensions": {"waveforms": 3}}}],
+        [{"spikeinterface": {"export": "nwb"}}],
+        [{"spikeinterface": {"metrics": {}}}],
+        [{"spikeinterface": {"recording_steps": "yes"}}],
+        [{"spikeinterface": {"recording_steps": [{"name": "nosuchstep"}]}}],
+        [{"bombcell": {"recording_steps": [{"name": "correct_motion"}]}}],
+    ],
+)
+def test_malformed_postprocess_file_fails(raw):
+    with pytest.raises(JobSpecError):
+        job_spec.build_job_spec([], LEGACY_KS4, raw)
+
+
+def test_analyzer_recording_steps():
+    hp = [{"name": "highpass_filter", "kwargs": {"freq_min": 400}}]
+    explicit = job_spec.build_job_spec(
+        [], LEGACY_KS4, [{"bombcell": {"recording_steps": hp}}]
+    )
+    assert explicit.analyzer_recording_steps == hp
+    # a step without the key goes with the one that sets it
+    both = job_spec.build_job_spec(
+        [],
+        NEW_KS4,
+        [{"spikeinterface": {"extensions": {"templates": {}}}}, {"bombcell": {}}],
+    )
+    assert both.analyzer_recording_steps == job_spec.AUTO
+    none = job_spec.build_job_spec(
+        [], LEGACY_KS4, [{"bombcell": {"recording_steps": []}}]
+    )
+    assert none.analyzer_recording_steps == []
+
+
+def test_postprocessing_steps_must_agree_on_the_analyzer_recording():
+    hp = [{"name": "highpass_filter", "kwargs": {}}]
+    with pytest.raises(JobSpecError, match="recording_steps"):
+        job_spec.build_job_spec(
+            [],
+            LEGACY_KS4,
+            [
+                {"spikeinterface": {"extensions": {}, "recording_steps": hp}},
+                {"bombcell": {"recording_steps": "auto"}},
+            ],
+        )

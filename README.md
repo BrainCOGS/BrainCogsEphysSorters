@@ -361,7 +361,96 @@ and now fails the job with a message saying to name the sorter and use `sorter_p
   exported over it; the other sorters are always exported to phy, whatever this says.
 - **job_kwargs:** SpikeInterface job kwargs for the analyzer and the export.
 
-Postprocessing runs when `postprocessing` is not empty or the sorter is not Kilosort.
+This object is the job's first postprocessing step (a `spikeinterface` one, below), and runs in the
+postprocessing stage. Postprocessing runs when the job has a postprocessing step or the sorter is not Kilosort.
+
+### Postprocess parameter file (optional)
+
+A job can also select a post-processing step list (in the DB: `PostClusterParamSteps`, built from
+`PostClusterParamSet` rows like the preprocessing ones). U19-pipeline-python then writes it to
+`ParameterFiles/postprocess_paramset_<id>.json`, an ordered list of `{method: params}` like the preprocess file.
+Without the file (every job before this option, and every job that selects no list) the job runs exactly as before.
+A `Nothing` element is accepted and does nothing.
+
+The postprocessing stage runs right after the sort and before the CatGT/DREDge/`spikeinterface` outputs are
+deleted, since it reads the recording the sorter read. The IBL atlas step stays the job's last step. Every step
+shares one sorting analyzer, in `<clustering_method>_output/spikeinterface/analyzer/`:
+
+- a sort run through SpikeInterface (a namespaced paramset) builds it on the recording and sorting the sort stage
+  had in memory (lazy preprocessing steps included);
+- a legacy Kilosort sort (a flat paramset, the MATLAB Kilosorts, or a container `sorter_version`) is read back:
+  `read_kilosort` on `<clustering_method>_output` and `read_spikeglx` on the folder the sorter read. When the
+  paramset's `fs` (often `30000`) differs from the SpikeGLX rate, the spike times are kept as the sample indices
+  they are and the recording's rate is used.
+
+The analyzer is built when the first step needs it, and each step only computes the extensions it does not have
+yet. On a rerun, an analyzer already there is reused, with its extensions, if it holds exactly the same spikes as
+the new sort; otherwise it is rebuilt.
+
+```
+[
+  {"spikeinterface": {
+    "extensions": {"quality_metrics": {}, "template_metrics": {}},
+    "job_kwargs": {"n_jobs": 8}
+  }},
+  {"bombcell": {
+    "thresholds": {"mua": {"snr": {"greater": 3}, "isolation_distance": null}},
+    "split_non_somatic": false
+  }}
+]
+```
+
+#### `spikeinterface` postprocessing step
+
+Takes the same keys as the namespaced paramset's `postprocessing` object above (`extensions`, `export`,
+`job_kwargs`, and `recording_steps` below). A namespaced paramset's own `postprocessing` runs before the steps
+of the file.
+
+#### `bombcell` postprocessing step
+
+Labels each unit `good`, `mua`, `noise` or `non_soma` with SpikeInterface's port of
+[bombcell](https://github.com/Julie-Fabre/bombcell) (`spikeinterface.curation.bombcell_label_units`), which
+thresholds the analyzer's quality and template metrics. Every key is optional (`{"bombcell": {}}` runs bombcell's
+defaults):
+
+- **thresholds:** overrides of SpikeInterface's defaults (`bombcell_get_default_thresholds()`), as
+  `{section: {metric: {"greater": x, "less": y, "abs": bool} | null}}` with sections `noise`, `mua` and
+  `non-somatic`. A metric named here replaces only the bounds it gives; `null` drops the metric. A metric the
+  analyzer does not have is skipped with a warning in the log.
+- **split_non_somatic:** (bool, default `false`) label non-somatic units `non_soma_good` / `non_soma_mua` instead
+  of `non_soma`.
+- **extensions:** `{name: kwargs}` replacing the kwargs of an extension bombcell computes, or adding one. By default
+  it computes, when missing, `random_spikes`, `waveforms`, `templates`, `noise_levels`, `spike_amplitudes`,
+  `spike_locations`, `principal_components`, `quality_metrics` (the metrics bombcell's thresholds read:
+  `num_spikes`, `firing_rate`, `presence_ratio`, `snr`, `isi_violation`, `rp_violation`, `sliding_rp_violation`,
+  `amplitude_cutoff`, `amplitude_median`, `drift`, `mahalanobis`) and `template_metrics` with the multi-channel
+  metrics (for `exp_decay`). If an earlier step computed `quality_metrics` without some of those, they are added.
+- **job_kwargs:** SpikeInterface job kwargs (default: the cores slurm gave the job).
+- **recording_steps:** see below.
+
+Its results are in `<clustering_method>_output/spikeinterface/bombcell/`: `labeling_results_wide.csv` (one row
+per unit: label and metrics), `labeling_results_narrow.csv` (one row per unit and thresholded metric, with the
+bounds and whether it passed) and `thresholds.json` (the thresholds used). The labels are also written for phy as
+`<clustering_method>_output/cluster_bc_unitType.tsv` (`cluster_id`, `bc_unitType`), which phy shows as a column.
+`cluster_group.tsv`, the curation the DataJoint element loads, is not changed, and no `metrics.csv` is written.
+
+(The standalone `bombcell` package, `bc.run_bombcell(ks_dir, save_path, param)`, would be another way to run it
+on the Kilosort folder; it is not used here, since SpikeInterface's port needs no new dependency.)
+
+#### `recording_steps` (both postprocessing methods)
+
+The analyzer needs filtered traces (waveforms, templates and every amplitude metric are computed from them).
+`recording_steps` is a SpikeInterface step list, as in the `spikeinterface` preprocessing step (without
+`correct_motion`), applied lazily on top of the recording the sorter read before the analyzer is built:
+
+- `"auto"` (the default for a step from the postprocess file): a 300 Hz `highpass_filter` and a global median
+  `common_reference` when the sorter read the raw run with nothing applied (the `Nothing` preprocessing, where
+  Kilosort filters internally), and nothing otherwise (CatGT and the SpikeInterface step lists already filter).
+- `[]`: the recording exactly as the sorter read it. This is what a namespaced paramset's own `postprocessing` gets
+  when the job has no postprocess file, as before this option existed.
+- a step list, e.g. `[{"name": "bandpass_filter", "kwargs": {"freq_min": 300, "freq_max": 6000}}]`.
+
+All the steps of a job share one analyzer, so the steps that set `recording_steps` must agree.
 
 #### Output layout
 
@@ -375,9 +464,10 @@ Postprocessing runs when `postprocessing` is not empty or the sorter is not Kilo
   positive `amplitudes.npy`.
 - SpikeInterface's own files are in `<clustering_method>_output/spikeinterface/`: the `run_sorter` log and
   params (and, for the other sorters, their native `sorter_output/`), the motion folder of a lazy
-  `correct_motion` step, the sorting analyzer (`analyzer/`) and `quality_metrics.csv` / `template_metrics.csv`.
-  No `metrics.csv` is written next to the phy files, since the element reads that file as a sign that ecephys
-  quality control ran.
+  `correct_motion` step, the sorting analyzer (`analyzer/`), `quality_metrics.csv` / `template_metrics.csv` and
+  bombcell's `bombcell/`. No `metrics.csv` is written next to the phy files, since the element reads that file as
+  a sign that ecephys quality control ran.
+- A `bombcell` step adds `cluster_bc_unitType.tsv` to the phy folder; `cluster_group.tsv` is never overwritten.
 
 ### Tiger cluster directory organization
 
@@ -392,7 +482,7 @@ These are the main directories that can be found on it:
 - ```/electrophysiology_processing``` → All repositories for processing ephys
   - ```/BrainCogsEphysSorters```  Common library to process ephys in all BrainCogs (this Repository)
 
-- ```/ParameterFiles``` →  Preprocess and process params files for processing sessions (all modalities)
+- ```/ParameterFiles``` →  Preprocess, process and (optional) postprocess params files for processing sessions (all modalities)
 
 - ```/Output_log``` →  Output data from processing sessions (all modalities)
 
@@ -408,6 +498,7 @@ These are the main directories of the repository
 - ```/u19_sorting``` → Call to all preprocess and process (sorters) codes.
   - preprocess_wrappers.py  Wrappers to call all preprocess libraries with corresponding params
   - sorters_wrappers.py     Wrappers to call all sorters libraries with corresponding params
+  - postprocess_wrappers.py The postprocessing stage (`spikeinterface`, `bombcell`) and the IBL atlas step
 
 - main_script.py → Script that is executed on runtime
 

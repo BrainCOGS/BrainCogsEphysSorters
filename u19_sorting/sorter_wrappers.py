@@ -1,3 +1,4 @@
+import dataclasses
 import importlib.metadata
 import json
 import pathlib
@@ -18,6 +19,20 @@ NATIVE_PACKAGES = {"kilosort4": "kilosort"}
 NATIVE_RUNNERS = {"kilosort2", "kilosort3", "kilosort4"}
 
 
+@dataclasses.dataclass
+class SortResult:
+    """What the sort stage leaves for the postprocessing stage.
+
+    `recording` and `sorting` are the in-memory SpikeInterface objects of a namespaced
+    (SpikeInterface) sort, with the lazy preprocessing steps applied; None for a legacy
+    sort, whose output the postprocessing stage reads back from disk.
+    """
+
+    output_directory: pathlib.Path
+    recording: object = None
+    sorting: object = None
+
+
 def sorter_main(recording_process_id, raw_directory, processed_directory, spec=None):
     """Main function to call appropiate sorter
     Args:
@@ -30,7 +45,18 @@ def sorter_main(recording_process_id, raw_directory, processed_directory, spec=N
     the MATLAB Kilosort 2/3 scripts, or a pinned container if `sorter_version` names one.
     A namespaced paramset (one with `sorter_params`) runs through SpikeInterface.
     Either way the result is `<processed_directory>/<clustering_method>_output`.
+    Postprocessing (the sorting analyzer, bombcell, the phy export of a sorter that is
+    not Kilosort) is the next stage, postprocess_wrappers.postprocess_main; run_sort
+    returns what it needs.
     """
+
+    return run_sort(
+        recording_process_id, raw_directory, processed_directory, spec
+    ).output_directory
+
+
+def run_sort(recording_process_id, raw_directory, processed_directory, spec=None):
+    """sorter_main, returning a SortResult instead of just the output directory."""
 
     if spec is None:
         spec = job_spec.load_job_spec(recording_process_id, missing_preprocess_ok=True)
@@ -70,6 +96,7 @@ def sorter_main(recording_process_id, raw_directory, processed_directory, spec=N
         processed_directory, clustering_method + "_output"
     )
     pathlib.Path(sorter_processed_directory).mkdir(parents=True, exist_ok=True)
+    result = SortResult(sorter_processed_directory)
 
     if sorting.legacy:
         run_legacy_sorter(
@@ -80,7 +107,7 @@ def sorter_main(recording_process_id, raw_directory, processed_directory, spec=N
             sorter_processed_directory,
         )
     else:
-        run_spikeinterface_sorter(
+        result.recording, result.sorting = run_spikeinterface_sorter(
             spec, resolved, raw_directory, sorter_processed_directory
         )
 
@@ -90,7 +117,7 @@ def sorter_main(recording_process_id, raw_directory, processed_directory, spec=N
     print(clustering_method, " this is the sorter")
     params_file_for_different_os(sorter_processed_directory)
 
-    return sorter_processed_directory
+    return result
 
 
 def run_legacy_sorter(
@@ -159,27 +186,15 @@ def run_legacy_sorter(
 def run_spikeinterface_sorter(
     spec, resolved, raw_directory, sorter_processed_directory
 ):
-    """A namespaced paramset: sort through SpikeInterface, then its postprocessing."""
+    """A namespaced paramset: sort through SpikeInterface; returns (recording, sorting).
 
-    sorter_name = si_wrappers.si_sorter_name(spec.sorting.clustering_method)
-    recording, sorting_result = si_wrappers.run_sorter(
+    Its postprocessing (and the phy export of a sorter that is not Kilosort) runs in the
+    postprocessing stage, on these same objects.
+    """
+
+    return si_wrappers.run_sorter(
         spec.sorting, resolved, raw_directory, sorter_processed_directory
     )
-
-    # A sorter that is not Kilosort leaves no phy folder, so one is always exported:
-    # that folder is what the DataJoint element and the IBL step read.
-    needs_phy = not si_wrappers.is_kilosort(sorter_name)
-    wants_phy = spec.postprocessing.get("export") == "phy"
-    if wants_phy and not needs_phy:
-        print(sorter_name, "already wrote a phy folder; not exporting over it")
-    if spec.postprocessing or needs_phy:
-        si_wrappers.run_postprocessing(
-            recording,
-            sorting_result,
-            sorter_processed_directory,
-            spec.postprocessing,
-            export_phy=needs_phy,
-        )
 
 
 def installed_version(package):

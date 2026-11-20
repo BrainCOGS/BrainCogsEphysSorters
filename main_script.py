@@ -33,7 +33,7 @@ print("recording_process_id", recording_process_id)
 print("processed_data_directory", processed_data_directory)
 
 
-# Both parameter files, normalized once; cross-stage rules are resolved in there
+# The parameter files, normalized once; cross-stage rules are resolved in there
 spec = job_spec.load_job_spec(recording_process_id)
 
 # Preprocess main
@@ -41,10 +41,15 @@ new_raw_data_directory = pw.preprocess_main(
     recording_process_id, raw_data_directory, processed_data_directory, spec
 )
 
-# Sort main (a namespaced paramset also runs its SpikeInterface postprocessing here)
-sorter_processed_directory = sw.sorter_main(
+# Sort main
+sort_result = sw.run_sort(
     recording_process_id, new_raw_data_directory, processed_data_directory, spec
 )
+sorter_processed_directory = sort_result.output_directory
+
+# Postprocess main: the job's postprocessing steps (SpikeInterface analyzer, bombcell).
+# Before the cleanup below, since it reads the recording the sorter read.
+ppw.postprocess_main(spec, raw_data_directory, new_raw_data_directory, sort_result)
 
 # Delete unnecesary results directory
 
@@ -56,7 +61,7 @@ pw.post_process_partial_results(
 
 print("before postprocessing 2 ...")
 
-# sorter_processed_directory = pathlib.Path(processed_data_directory, 'kilosort4_output')
+# IBL atlas step, the fixed last step
 ppw.post_process_main(
     raw_data_directory, processed_data_directory, sorter_processed_directory
 )

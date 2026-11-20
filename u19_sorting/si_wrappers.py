@@ -1,5 +1,6 @@
 """The SpikeInterface path: reading SpikeGLX runs, the preprocessing step list, running a
-sorter through `run_sorter`, postprocessing, and the output layout.
+sorter through `run_sorter`, the postprocessing methods (the sorting analyzer and its
+extensions, bombcell unit labels, the phy export), and the output layout.
 
 Whatever runs here, the result has to end up at `<processed_dir>/<clustering_method>_output`
 as a Kilosort/phy folder, because that is what U19-pipeline-python hands to the DataJoint
@@ -7,7 +8,9 @@ element (`element_array_ephys/readers/kilosort.py`) and what the IBL atlas step 
 Everything SpikeInterface adds (its run log, motion info, the sorting analyzer, quality
 metrics) goes in the `spikeinterface/` subfolder, out of the element's way. In particular no
 `metrics.csv` is written next to the phy files: the element reads that as "ecephys quality
-control was run" and then expects a `mean_waveforms.npy` this path does not produce.
+control was run" and then expects a `mean_waveforms.npy` this path does not produce. Nor is
+`cluster_group.tsv` (the curation the element loads) ever overwritten with bombcell's labels:
+those go in `cluster_bc_unitType.tsv`, which phy shows as a column.
 
 spikeinterface and torch are imported inside the functions, so legacy CatGT/Kilosort jobs
 and the test suite never pay for (or need) them.
@@ -567,63 +570,394 @@ def order_extensions(requested):
     return ordered
 
 
-def run_postprocessing(
-    recording, sorting, output_directory, postprocessing, export_phy
-):
-    """Build a sorting analyzer, compute the extensions, save metrics, optionally export phy.
+def read_sorter_output(folder):
+    """The sorting in a Kilosort/phy folder (a legacy sort's `<clustering_method>_output`)."""
 
-    export_phy is forced by the caller for sorters that do not write a phy folder
-    themselves. For Kilosort the native folder already is the phy folder, so nothing is
-    exported over it.
+    import spikeinterface.extractors as se
+
+    return se.read_kilosort(pathlib.Path(folder).as_posix())
+
+
+class PostprocessContext:
+    """The one sorting analyzer every postprocessing step of a job shares.
+
+    It is built the first time a step needs it, in
+    `<clustering_method>_output/spikeinterface/analyzer/`, on the recording the sorter
+    read (plus `recording_steps`) and the sorting it produced. An analyzer already there
+    (a rerun) is reused, with every extension it has, if it holds exactly the same spikes;
+    otherwise it is rebuilt. Steps only compute the extensions that are missing.
+
+    recording / sorting: the in-memory objects of a SpikeInterface sort, or callables
+    that open them (a legacy sort is read back from disk). recording_steps: the
+    normalized step list, or job_spec.AUTO. sorter_read_raw: the sorter read the raw run
+    with nothing applied, which is when AUTO adds its filters.
     """
+
+    def __init__(
+        self,
+        output_directory,
+        recording,
+        sorting,
+        recording_steps=(),
+        sorter_read_raw=False,
+    ):
+        self.output_directory = pathlib.Path(output_directory)
+        self.si_dir = self.output_directory / SI_SUBDIR
+        self._recording = recording
+        self._sorting = sorting
+        self.recording_steps = recording_steps
+        self.sorter_read_raw = sorter_read_raw
+        self._analyzer = None
+        # Job kwargs of the first step, for the phy export at the end.
+        self.job_kwargs = None
+        # unit_id -> bombcell label, once a bombcell step ran.
+        self.bombcell_labels = None
+
+    def resolved_recording_steps(self):
+        if self.recording_steps == job_spec.AUTO:
+            return list(job_spec.AUTO_RECORDING_STEPS) if self.sorter_read_raw else []
+        return list(self.recording_steps or [])
+
+    def _open(self, value):
+        return value() if callable(value) else value
+
+    def analyzer(self, job_kwargs):
+        if self._analyzer is None:
+            if self.job_kwargs is None:
+                self.job_kwargs = job_kwargs
+            recording = self._open(self._recording)
+            steps = self.resolved_recording_steps()
+            if steps:
+                print("analyzer recording steps:", [step["name"] for step in steps])
+                recording = apply_steps(recording, steps)
+            sorting = align_sampling_frequency(self._open(self._sorting), recording)
+            self._analyzer = open_analyzer(
+                self.si_dir / "analyzer", recording, sorting, job_kwargs
+            )
+        return self._analyzer
+
+    def compute(self, requested, job_kwargs):
+        """Compute the requested extensions (and their parents) the analyzer lacks."""
+
+        analyzer = self.analyzer(job_kwargs)
+        extensions = order_extensions(dict(requested))
+        missing = {
+            name: kwargs
+            for name, kwargs in extensions.items()
+            if not analyzer.has_extension(name)
+        }
+        kept = [name for name in extensions if name not in missing]
+        if kept:
+            print("analyzer extensions already computed:", kept)
+        if missing:
+            print("computing analyzer extensions:", list(missing))
+            analyzer.compute(missing, **job_kwargs)
+        return analyzer
+
+
+def align_sampling_frequency(sorting, recording):
+    """The sorting at the recording's sampling rate.
+
+    Spike times are sample indices into the recording the sorter read, so they stay as
+    they are. A legacy Kilosort paramset often says `fs: 30000` where the SpikeGLX meta
+    says 30000.39, which `create_sorting_analyzer` refuses.
+    """
+
+    from spikeinterface.core import NumpySorting
+
+    fs = recording.get_sampling_frequency()
+    if sorting.get_sampling_frequency() == fs:
+        return sorting
+    print(
+        "sorting sampling rate",
+        sorting.get_sampling_frequency(),
+        "-> recording's",
+        fs,
+    )
+    aligned = NumpySorting.from_sorting(
+        sorting, with_metadata=True, copy_spike_vector=True
+    )
+    aligned._sampling_frequency = fs
+    return aligned
+
+
+def same_spikes(sorting_a, sorting_b):
+    """True if two sortings hold the same units and spikes (frames, not seconds)."""
+
+    import numpy as np
+
+    if [str(u) for u in sorting_a.unit_ids] != [str(u) for u in sorting_b.unit_ids]:
+        return False
+    a, b = sorting_a.to_spike_vector(), sorting_b.to_spike_vector()
+    return a.shape == b.shape and all(
+        np.array_equal(a[field], b[field])
+        for field in ("sample_index", "unit_index", "segment_index")
+    )
+
+
+def open_analyzer(folder, recording, sorting, job_kwargs):
+    """Reuse the analyzer in `folder` if it holds these spikes, else build a new one."""
 
     import spikeinterface.full as si
 
-    output_directory = pathlib.Path(output_directory)
-    si_dir = output_directory / SI_SUBDIR
-    si_dir.mkdir(parents=True, exist_ok=True)
-    job_kwargs = with_default_job_kwargs(postprocessing.get("job_kwargs"))
+    folder = pathlib.Path(folder)
+    if folder.is_dir():
+        try:
+            analyzer = si.load_sorting_analyzer(folder.as_posix())
+        # A half-written folder from a killed job can fail in many ways (missing or
+        # truncated json/npy files); any of them just means "build it again".
+        except Exception as error:  # noqa: BLE001
+            print("could not load the analyzer in", folder, "-", error)
+            analyzer = None
+        if analyzer is not None and same_spikes(analyzer.sorting, sorting):
+            if not analyzer.has_recording():
+                analyzer.set_temporary_recording(recording)
+            print("reusing the sorting analyzer in", folder)
+            return analyzer
+        print("analyzer in", folder, "is from another sort; rebuilding it")
 
-    requested = dict(postprocessing.get("extensions") or {})
-    if export_phy:
-        for name in PHY_EXTENSIONS:
-            requested.setdefault(name, {})
-    extensions = order_extensions(requested)
-    print("spikeinterface postprocessing extensions:", list(extensions))
-
-    analyzer = si.create_sorting_analyzer(
+    folder.parent.mkdir(parents=True, exist_ok=True)
+    return si.create_sorting_analyzer(
         sorting,
         recording,
         format="binary_folder",
-        folder=(si_dir / "analyzer").as_posix(),
+        folder=folder.as_posix(),
         sparse=True,
         overwrite=True,
         **job_kwargs,
     )
-    if extensions:
-        analyzer.compute(extensions, **job_kwargs)
+
+
+def write_metrics_csv(analyzer, si_dir):
+    """quality_metrics.csv / template_metrics.csv under spikeinterface/, never metrics.csv."""
 
     for name in ("quality_metrics", "template_metrics"):
         if analyzer.has_extension(name):
             analyzer.get_extension(name).get_data().to_csv(
-                si_dir / (name + ".csv"), index_label="unit_id"
+                pathlib.Path(si_dir) / (name + ".csv"), index_label="unit_id"
             )
 
-    if export_phy:
-        phy_tmp = output_directory.with_name(output_directory.name + "_phy_tmp")
-        si.export_to_phy(
-            analyzer,
-            phy_tmp.as_posix(),
-            copy_binary=False,
-            remove_if_exists=True,
-            verbose=False,
+
+class spikeinterface_postproc:
+    """The `spikeinterface` postprocessing method: compute analyzer extensions.
+
+    Takes the keys of a namespaced paramset's `postprocessing` object (`extensions`,
+    `export`, `job_kwargs`); the phy export itself happens once, at the end of the stage.
+    """
+
+    @staticmethod
+    def run(context, params):
+        job_kwargs = with_default_job_kwargs(params.get("job_kwargs"))
+        requested = params.get("extensions") or {}
+        print(
+            "spikeinterface postprocessing extensions:",
+            list(order_extensions(dict(requested))) if requested else [],
+        )
+        analyzer = context.compute(requested, job_kwargs)
+        write_metrics_csv(analyzer, context.si_dir)
+        return analyzer
+
+
+# Folder (under spikeinterface/) and phy file the `bombcell` method writes. The phy file
+# is the standalone bombcell's name for it; cluster_group.tsv (the curation the element
+# loads) is left alone.
+BOMBCELL_SUBDIR = "bombcell"
+BOMBCELL_PHY_FILE = "cluster_bc_unitType.tsv"
+BOMBCELL_PHY_COLUMN = "bc_unitType"
+
+# quality_metrics that give the columns bombcell's default "mua" thresholds read
+# (`mahalanobis` gives isolation_distance and l_ratio; `drift` gives drift_ptp), plus a few
+# cheap ones. The nearest-neighbour and silhouette PC metrics are left out: they are slow
+# on a Neuropixels sort and bombcell does not use them.
+BOMBCELL_QUALITY_METRICS = [
+    "num_spikes",
+    "firing_rate",
+    "presence_ratio",
+    "snr",
+    "isi_violation",
+    "rp_violation",
+    "sliding_rp_violation",
+    "amplitude_cutoff",
+    "amplitude_median",
+    "drift",
+    "mahalanobis",
+]
+
+# Extensions a bombcell step computes (when missing). `template_metrics` with the
+# multi-channel metrics gives exp_decay, one of the "noise" thresholds; SpikeInterface
+# turns those on by itself from 64 channels. A step's own `extensions` replace the kwargs
+# of an extension here, or add one.
+BOMBCELL_EXTENSIONS = {
+    "random_spikes": {},
+    "waveforms": {},
+    "templates": {},
+    "noise_levels": {},
+    "spike_amplitudes": {},
+    "spike_locations": {},
+    "principal_components": {},
+    "quality_metrics": {"metric_names": BOMBCELL_QUALITY_METRICS},
+    "template_metrics": {"include_multi_channel_metrics": True},
+}
+
+
+def bombcell_thresholds(overrides):
+    """SpikeInterface's bombcell defaults with the paramset's overrides applied.
+
+    An override replaces the bounds it names (`{"greater": 3}` keeps the default
+    `less`); `null` drops the metric from its section.
+    """
+
+    import copy
+
+    from spikeinterface.curation import bombcell_get_default_thresholds
+
+    thresholds = bombcell_get_default_thresholds()
+    for section, metrics in (overrides or {}).items():
+        target = thresholds.setdefault(section, {})
+        for metric, bounds in metrics.items():
+            if bounds is None:
+                target.pop(metric, None)
+            else:
+                target[metric] = {**target.get(metric, {}), **copy.deepcopy(bounds)}
+    return thresholds
+
+
+def top_up_quality_metrics(analyzer, metric_names, job_kwargs):
+    """Add the quality metrics an earlier step's `quality_metrics` did not compute."""
+
+    if not metric_names or not analyzer.has_extension("quality_metrics"):
+        return
+    done = analyzer.get_extension("quality_metrics").params.get("metric_names") or []
+    missing = [name for name in metric_names if name not in done]
+    if missing:
+        print("adding quality metrics for bombcell:", missing)
+        analyzer.compute(
+            {
+                "quality_metrics": {
+                    "metric_names": missing,
+                    "delete_existing_metrics": False,
+                }
+            },
             **job_kwargs,
         )
-        for item in sorted(phy_tmp.iterdir()):
-            _move_over(item, output_directory / item.name)
-        phy_tmp.rmdir()
-        make_phy_folder_element_compatible(output_directory)
-    return analyzer
+
+
+class bombcell_postproc:
+    """The `bombcell` postprocessing method: label units good / mua / noise / non_soma.
+
+    Uses SpikeInterface's port of bombcell (`spikeinterface.curation`), which thresholds
+    the analyzer's quality and template metrics; the extensions it needs are computed
+    first. Results go in `spikeinterface/bombcell/`; the labels are also written for phy
+    as `cluster_bc_unitType.tsv` at the end of the stage.
+    """
+
+    @staticmethod
+    def run(context, params):
+        import json
+
+        from spikeinterface.curation import (
+            bombcell_label_units,
+            save_bombcell_results,
+        )
+
+        job_kwargs = with_default_job_kwargs(params.get("job_kwargs"))
+        requested = {**BOMBCELL_EXTENSIONS, **(params.get("extensions") or {})}
+        analyzer = context.compute(requested, job_kwargs)
+        top_up_quality_metrics(
+            analyzer,
+            (requested.get("quality_metrics") or {}).get("metric_names"),
+            job_kwargs,
+        )
+        write_metrics_csv(analyzer, context.si_dir)
+
+        out = context.si_dir / BOMBCELL_SUBDIR
+        out.mkdir(parents=True, exist_ok=True)
+        if len(analyzer.unit_ids) == 0:
+            print("bombcell: the sort has no units, nothing to label")
+            context.bombcell_labels = {}
+            return {}
+
+        thresholds = bombcell_thresholds(params.get("thresholds"))
+        labels = bombcell_label_units(
+            analyzer,
+            thresholds=thresholds,
+            split_non_somatic=params.get("split_non_somatic", False),
+        )["bombcell_label"]
+        save_bombcell_results(
+            analyzer.get_metrics_extension_data().loc[labels.index],
+            labels.to_numpy(),
+            thresholds,
+            out,
+        )
+        (out / "thresholds.json").write_text(json.dumps(thresholds, indent=2))
+        context.bombcell_labels = dict(
+            zip(labels.index, labels.to_numpy(), strict=True)
+        )
+        print("bombcell labels:", labels.value_counts().to_dict())
+        return context.bombcell_labels
+
+
+def write_bombcell_phy_labels(folder, labels):
+    """`cluster_bc_unitType.tsv` (cluster_id, bc_unitType) in the phy folder.
+
+    A Kilosort folder's cluster ids are the unit ids. A folder SpikeInterface exported
+    numbers its clusters 0..n-1 and maps them back in `cluster_si_unit_ids.tsv`.
+    """
+
+    import pandas as pd
+
+    folder = pathlib.Path(folder)
+    by_unit = {str(unit): label for unit, label in labels.items()}
+    mapping_file = folder / "cluster_si_unit_ids.tsv"
+    if mapping_file.is_file():
+        mapping = pd.read_csv(mapping_file, sep="\t")
+        cluster_ids = mapping["cluster_id"].tolist()
+        units = [str(u) for u in mapping["si_unit_id"]]
+    else:
+        cluster_ids = list(labels)
+        units = [str(u) for u in labels]
+    rows = pd.DataFrame(
+        {
+            "cluster_id": cluster_ids,
+            BOMBCELL_PHY_COLUMN: [by_unit.get(u, "") for u in units],
+        }
+    )
+    rows.to_csv(folder / BOMBCELL_PHY_FILE, sep="\t", index=False)
+
+
+def export_phy_folder(analyzer, output_directory, job_kwargs):
+    """Export to phy into output_directory and make it what the element reader expects."""
+
+    import spikeinterface.full as si
+
+    output_directory = pathlib.Path(output_directory)
+    phy_tmp = output_directory.with_name(output_directory.name + "_phy_tmp")
+    si.export_to_phy(
+        analyzer,
+        phy_tmp.as_posix(),
+        copy_binary=False,
+        remove_if_exists=True,
+        verbose=False,
+        **job_kwargs,
+    )
+    for item in sorted(phy_tmp.iterdir()):
+        _move_over(item, output_directory / item.name)
+    phy_tmp.rmdir()
+    make_phy_folder_element_compatible(output_directory)
+
+
+def finish_postprocessing(context, export_phy):
+    """The end of the stage: the phy export (for a sorter that wrote no phy folder) and
+    bombcell's phy labels, which need the exported cluster ids.
+    """
+
+    if export_phy:
+        job_kwargs = context.job_kwargs or with_default_job_kwargs(None)
+        analyzer = context.compute({name: {} for name in PHY_EXTENSIONS}, job_kwargs)
+        write_metrics_csv(analyzer, context.si_dir)
+        export_phy_folder(analyzer, context.output_directory, job_kwargs)
+    if context.bombcell_labels:
+        write_bombcell_phy_labels(context.output_directory, context.bombcell_labels)
 
 
 def make_phy_folder_element_compatible(folder, default_label=DEFAULT_CLUSTER_LABEL):

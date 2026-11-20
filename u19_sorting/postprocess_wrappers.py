@@ -1,8 +1,17 @@
+"""The two stages after the sort.
+
+postprocess_main      the job's postprocessing steps (`spikeinterface`, `bombcell`), on the
+                      sorter's output and the recording it read. Runs right after the sort,
+                      before the preprocessing outputs are deleted.
+post_process_main     the IBL atlas step, the fixed last step of every job.
+"""
+
+import functools
 import pathlib
 import subprocess
 import sys
 
-from u19_sorting import config
+from u19_sorting import config, job_spec, si_wrappers
 
 
 def ibl_atlas_python():
@@ -20,6 +29,80 @@ def ibl_atlas_python():
     except OSError:
         in_venv = False
     return sys.executable if in_venv else None
+
+
+def needs_phy_export(spec):
+    """A sorter run through SpikeInterface that is not Kilosort leaves no phy folder, so
+    one is always exported: it is what the DataJoint element and the IBL step read."""
+
+    if spec.sorting.legacy:
+        return False
+    sorter_name = si_wrappers.si_sorter_name(spec.sorting.clustering_method)
+    return not si_wrappers.is_kilosort(sorter_name)
+
+
+def postprocess_main(spec, raw_data_directory, sorter_input_directory, sort_result):
+    """Run the job's postprocessing steps in order; returns the PostprocessContext, or None.
+
+    Args:
+        spec                     (JobSpec):    the job spec
+        raw_data_directory       (Path):       the raw SpikeGLX run
+        sorter_input_directory   (Path):       what the sorter read (the raw run or the last
+                                               preprocessing output); still on disk here
+        sort_result              (SortResult): from sorter_wrappers.run_sort
+
+    Every step shares one sorting analyzer (see si_wrappers.PostprocessContext). For a
+    SpikeInterface sort it is built on the in-memory recording and sorting; for a legacy
+    sort the Kilosort folder is read back with `read_kilosort` and the recording with
+    `read_recording`. A job without postprocessing steps (and with a Kilosort sorter) does
+    nothing here and imports nothing.
+    """
+
+    output_directory = pathlib.Path(sort_result.output_directory)
+    export_phy = needs_phy_export(spec)
+    if not spec.postprocessing and not export_phy:
+        print("no postprocessing steps")
+        return None
+
+    if sort_result.sorting is not None:
+        recording, sorting = sort_result.recording, sort_result.sorting
+    else:
+        recording = functools.partial(
+            si_wrappers.read_recording, sorter_input_directory
+        )
+        sorting = functools.partial(si_wrappers.read_sorter_output, output_directory)
+    sorter_read_raw = (
+        pathlib.Path(sorter_input_directory) == pathlib.Path(raw_data_directory)
+        and not spec.sorting.lazy_steps
+    )
+    context = si_wrappers.PostprocessContext(
+        output_directory,
+        recording,
+        sorting,
+        recording_steps=spec.analyzer_recording_steps,
+        sorter_read_raw=sorter_read_raw,
+    )
+
+    for step in spec.postprocessing:
+        print("this_postparam", {step.method: step.params})
+        if step.method == job_spec.SPIKEINTERFACE:
+            if step.params.get("export") == "phy" and not export_phy:
+                print(
+                    spec.sorting.clustering_method,
+                    "already wrote a phy folder; not exporting over it",
+                )
+            si_wrappers.spikeinterface_postproc.run(context, step.params)
+        elif step.method == job_spec.BOMBCELL:
+            si_wrappers.bombcell_postproc.run(context, step.params)
+
+    si_wrappers.finish_postprocessing(context, export_phy=export_phy)
+    if export_phy:
+        # The phy export wrote params.py; give it its Windows / Mac copies, as the sort
+        # stage does for a Kilosort folder.
+        import u19_sorting.sorter_wrappers as sw
+
+        sw.params_file_for_different_os(output_directory)
+    return context
 
 
 def post_process_main(

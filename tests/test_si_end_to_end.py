@@ -16,6 +16,7 @@ si = pytest.importorskip("spikeinterface.full")
 probeinterface = pytest.importorskip("probeinterface")
 ibllib = pytest.importorskip("ibllib")
 
+import u19_sorting.postprocess_wrappers as ppw  # noqa: E402
 import u19_sorting.preprocess_wrappers as pw  # noqa: E402
 import u19_sorting.sorter_wrappers as sw  # noqa: E402
 from u19_sorting import config, job_spec, si_wrappers  # noqa: E402
@@ -107,11 +108,18 @@ def job(tmp_path, monkeypatch):
         "preprocess_parameter_file",
         str(params_dir / "preprocess_paramset_{}.json"),
     )
+    monkeypatch.setattr(
+        config,
+        "postprocess_parameter_file",
+        str(params_dir / "postprocess_paramset_{}.json"),
+    )
     monkeypatch.setattr(config, "chanmap_file", str(tmp_path / "chanmap_{}.mat"))
 
-    def write(pre, proc):
+    def write(pre, proc, post=None):
         (params_dir / "preprocess_paramset_1.json").write_text(json.dumps(pre))
         (params_dir / "process_paramset_1.json").write_text(json.dumps(proc))
+        if post is not None:
+            (params_dir / "postprocess_paramset_1.json").write_text(json.dumps(post))
         return tmp_path / "processed"
 
     return write
@@ -122,9 +130,10 @@ def run_job(raw, processed):
 
     spec = job_spec.load_job_spec(1)
     sorter_input = pw.preprocess_main(1, raw, processed, spec)
-    output = sw.sorter_main(1, sorter_input, processed, spec)
+    result = sw.run_sort(1, sorter_input, processed, spec)
+    ppw.postprocess_main(spec, raw, sorter_input, result)
     pw.post_process_partial_results(1, raw, processed)
-    return sorter_input, output
+    return sorter_input, result.output_directory
 
 
 def test_written_spikeinterface_step_is_a_spikeglx_run_with_the_sync_channel(
@@ -182,6 +191,8 @@ def test_namespaced_job_with_a_non_kilosort_sorter_lands_in_the_element_layout(
                 "job_kwargs": {"n_jobs": 1, "progress_bar": False},
             },
         },
+        # the job also selected a post-processing step list with bombcell in it
+        [{"bombcell": {"job_kwargs": {"n_jobs": 1, "progress_bar": False}}}],
     )
     sorter_input, output = run_job(raw, processed)
 
@@ -226,6 +237,22 @@ def test_namespaced_job_with_a_non_kilosort_sorter_lands_in_the_element_layout(
         "mua",
         "noise",
     }
+
+    # bombcell's labels are next to the curation, under the exported cluster ids
+    bc = (output / "cluster_bc_unitType.tsv").read_text().splitlines()
+    assert bc[0].split("\t") == ["cluster_id", "bc_unitType"]
+    assert [line.split("\t")[0] for line in bc[1:]] == [
+        line.split("\t")[0] for line in groups[1:]
+    ]
+    assert {line.split("\t")[1] for line in bc[1:]} <= {
+        "good",
+        "mua",
+        "noise",
+        "non_soma",
+    }
+    assert (
+        output / "spikeinterface" / "bombcell" / "labeling_results_wide.csv"
+    ).is_file()
 
     # extract_spike_depths: centre of mass of the first PC over each spike's channels
     pc_features = np.load(output / "pc_features.npy")[:, 0, :]
